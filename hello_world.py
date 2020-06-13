@@ -1,5 +1,6 @@
 import gi
 import time
+import threading
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
@@ -27,28 +28,23 @@ class MyWindow(Gtk.Window):
 
     def on_window_show(self, widget):
         print("on_window_show")
-        GLib.timeout_add_seconds(1, self.check_nas_online)
+        self.thread = threading.Thread(target=self.do_things)
+        self.thread.daemon = True
+        self.thread.start()
 
-    def info_label(self, text):
-        self.label.set_text(text)
-
-    def check_nas_online(self):
+    def do_things(self):
+        time.sleep(3)
         self.info_label("Checking NAS is online...")
-        GLib.timeout_add_seconds(3, self.connect_nas_drives)
-
-        # return false to not be called again
-        return False
-
-    def connect_nas_drives(self):
+        time.sleep(3)
         self.info_label("Connecting NAS drives...")
-        GLib.timeout_add_seconds(3, self.connect_done_ok)
-
-        # return false to not be called again
-        return False
-
-    def connect_done_ok(self):
+        time.sleep(3)
         self.info_label("All NAS drives connected!")
 
+    def info_label(self, text):
+        GLib.idle_add(self.set_label_text, text)
+
+    def set_label_text(self, text):
+        self.label.set_text(text)
         # return false to not be called again
         return False
 
