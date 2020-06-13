@@ -1,6 +1,7 @@
 import gi
 import time
 import threading
+import subprocess
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
@@ -8,23 +9,16 @@ from gi.repository import Gtk, GLib
 
 class MyWindow(Gtk.Window):
     def __init__(self):
-        Gtk.Window.__init__(self, title="Hello World")
+        Gtk.Window.__init__(self, title="PhanNAS Desktop",
+            default_width=200, resizable=False)
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add(self.box)
 
-        self.button1 = Gtk.Button(label="Hello")
-        self.button1.connect("clicked", self.on_button1_clicked)
-        self.box.pack_start(self.button1, True, True, 0)
-
-        self.label = Gtk.Label("Goodbye")
+        self.label = Gtk.Label("...")
         self.box.pack_start(self.label, True, True, 0)
 
         self.connect("show", self.on_window_show)
-
-    def on_button1_clicked(self, widget):
-        print("Hello")
-        self.info_label("Foo Bar 2000 blablablablabla!")
 
     def on_window_show(self, widget):
         print("on_window_show")
