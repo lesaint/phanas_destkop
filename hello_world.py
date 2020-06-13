@@ -39,6 +39,8 @@ class MyWindow(Gtk.Window):
         self.info_label("Connecting NAS drives...")
         time.sleep(3)
         self.info_label("All NAS drives connected!")
+        time.sleep(3)
+        GLib.idle_add(Gtk.main_quit)
 
     def info_label(self, text):
         GLib.idle_add(self.set_label_text, text)
