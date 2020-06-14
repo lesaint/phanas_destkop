@@ -75,7 +75,15 @@ class PhanNas:
             return False, "mount dir does not exist"
 
     def connect_drives(self):
-        return self._connect_drive("sys", "sys")
+        global_status = True
+        global_msg = []
+        for drive in NAS_DRIVES:
+            status, msg = self._connect_drive(drive, drive)
+            if not status:
+                global_status = False
+                global_msg.append(msg)
+
+        return global_status, "\n".join(global_msg)
 
     def _connect_drive(self, nas_drive, mount_sub_dir):
         device = "//{}/{}".format(self.nas_host, nas_drive)
