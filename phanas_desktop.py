@@ -145,7 +145,7 @@ class PhanNas:
             return False, "{} mounted to the wrong device: {}".format(dir_path, actual_device)
 
     def _mount_drive(self, dir_path, device):
-        mount_options = "uid=1001,vers=2.1,credentials={}".format("/home/lesaint/scripts/nas_mount/.phanas")
+        mount_options = "uid=1001,vers=2.1,credentials={}/.phanas".format(script_dir)
         command = [
             "sudo",
             # will fail if password needed => require sudoers to be configured in advance
