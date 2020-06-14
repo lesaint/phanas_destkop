@@ -25,17 +25,15 @@ class PhanNas:
 
     def check_online(self):
         if self.ping(self.nas_host):
-            print("{} is online".format(self.nas_host))
+            return True, None
         else:
-            print("{} is not online".format(self.nas_host))
+            return False, "{} is not online".format(self.nas_host)
 
     def check_mount_dir(self):
         if os.path.isdir(self.mount_point_dir):
-            print("mount dir exists")
-            return True
+            return True, None
         else:
-            print("mount dir does not exists")
-            return False
+            return False, "mount dir does not exist"
 
     # from https://stackoverflow.com/a/32684938
     def ping(self, host):
@@ -83,15 +81,24 @@ class MyWindow(Gtk.Window):
 
         time.sleep(3)
         self.info_label("Checking NAS is online...")
-        self.phanNAS.check_online()
+        status, msg = self.phanNAS.check_online()
+        if not status:
+            self.failure(msg)
+            return
         self.info_label("Checking mount dir...")
-        if not self.phanNAS.check_mount_dir():
-            return False
+        status, msg = self.phanNAS.check_mount_dir()
+        if not status:
+            self.failure(msg)
+            return
         self.info_label("Connecting NAS drives...")
         time.sleep(3)
         self.info_label("All NAS drives connected!")
         time.sleep(3)
         GLib.idle_add(Gtk.main_quit)
+
+    def failure(self, msg):
+        print(msg)
+        self.info_label(msg)
 
     def info_label(self, text):
         GLib.idle_add(self.set_label_text, text)
