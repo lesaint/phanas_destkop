@@ -21,19 +21,13 @@ class PhanNas:
     nas_host = "nas"
 
     def __init__(self):
-        self.mount_point_dir = PurePath(str(home_dir) + "/__NAS__")
+        self.mount_point_dir = Path(str(home_dir) + '/__NAS__')
 
     def check_online(self):
         if self.ping(self.nas_host):
             return True, None
         else:
             return False, "{} is not online".format(self.nas_host)
-
-    def check_mount_dir(self):
-        if os.path.isdir(self.mount_point_dir):
-            return True, None
-        else:
-            return False, "mount dir does not exist"
 
     # from https://stackoverflow.com/a/32684938
     def ping(self, host):
@@ -50,6 +44,35 @@ class PhanNas:
 
         # call local ping command, suppress stdout and stderr output as we only care about exit code
         return subprocess.call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+
+    def check_mount_dir(self):
+        if self.mount_point_dir.is_dir():
+            return True, None
+        else:
+            return False, 'mount dir does not exist'
+
+    def connect_drives(self):
+        return self.connect_drive('sys', 'sys')
+
+    def connect_drive(self, nas_drive, mount_sub_dir):
+        sub_dir = self.mount_point_dir / mount_sub_dir
+        if not sub_dir.exists():
+            print("Mount sub dir {} does not exist. Creating it...".format(sub_dir))
+            sub_dir.mkdir()
+        if not sub_dir.is_dir():
+            return False, "{} is not a directory".format(sub_dir)
+        if not self.is_empty_dir(sub_dir):
+            return False, "{} is not empty".format(sub_dir)
+
+        return True, None
+
+    def is_empty_dir(self, path_dir):
+        try:
+            next(path_dir.iterdir())
+            return False
+        except StopIteration as e:
+            return True
+
 
 
 class MyWindow(Gtk.Window):
@@ -91,7 +114,10 @@ class MyWindow(Gtk.Window):
             self.failure(msg)
             return
         self.info_label("Connecting NAS drives...")
-        time.sleep(3)
+        status, msg = self.phanNAS.connect_drives()
+        if not status:
+            self.failure(msg)
+            return
         self.info_label("All NAS drives connected!")
         time.sleep(3)
         GLib.idle_add(Gtk.main_quit)
