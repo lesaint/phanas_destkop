@@ -11,6 +11,7 @@ import time
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 from pathlib import Path, PurePath
+from subprocess import PIPE, DEVNULL
 
 PROGRAM_NAME = "PhanNas Desktop"
 MOUNT_DIR_NAME = "__NAS__"
@@ -54,7 +55,7 @@ class PhanNas:
         command = ["ping", param, "1", host]
 
         # call local ping command, suppress stdout and stderr output as we only care about exit code
-        return subprocess.call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+        return subprocess.call(command, stdout=DEVNULL, stderr=DEVNULL) == 0
 
     def check_mount_dir(self):
         if self.mount_dir_path.is_dir():
@@ -82,7 +83,11 @@ class PhanNas:
         if not status:
             return False, msg
 
-        # TODO mount device
+        status, msg = self._mount_drive(sub_dir_path, device)
+        if status:
+            print("mounted")
+        else:
+            return False, msg
 
         return True, None
 
@@ -118,7 +123,7 @@ class PhanNas:
             "--output", "SOURCE" ]
 
         findmount_process = subprocess.run(command,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+            stdout=PIPE, stderr=PIPE, encoding="utf-8")
         if findmount_process.returncode == 1:
             return False, None
 
@@ -127,6 +132,25 @@ class PhanNas:
             return True, None
         else:
             return False, "{} mounted to the wrong device: {}".format(dir_path, actual_device)
+
+    def _mount_drive(self, dir_path, device):
+        mount_options = "uid=1001,vers=2.1,credentials={}".format("/home/lesaint/scripts/nas_mount/.phanas")
+        command = [
+            "sudo",
+            # will fail if password needed => require sudoers to be configured in advance
+            # --reset-timestamp ignores previously provided password
+            "--non-interactive", "--reset-timestamp",
+            "mount", "--types", "cifs", device, str(dir_path),
+            "--options", mount_options
+        ]
+
+        p = subprocess.run(command, stdin=PIPE,
+            stdout=PIPE, stderr=PIPE, universal_newlines=True)
+        if p.returncode == 0:
+            return True, None
+        else:
+            return False, "Failed to mount {} in {}: {}".format(device, dir_path, p.stderr)
+
 
 
 
