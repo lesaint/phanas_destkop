@@ -24,13 +24,13 @@ class PhanNas:
         self.mount_point_dir = Path(str(home_dir) + '/__NAS__')
 
     def check_online(self):
-        if self.ping(self.nas_host):
+        if self._ping(self.nas_host):
             return True, None
         else:
             return False, "{} is not online".format(self.nas_host)
 
     # from https://stackoverflow.com/a/32684938
-    def ping(self, host):
+    def _ping(self, host):
         """
         Returns True if host (str) responds to a ping request.
         Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
@@ -52,21 +52,21 @@ class PhanNas:
             return False, 'mount dir does not exist'
 
     def connect_drives(self):
-        return self.connect_drive('sys', 'sys')
+        return self._connect_drive('sys', 'sys')
 
-    def connect_drive(self, nas_drive, mount_sub_dir):
+    def _connect_drive(self, nas_drive, mount_sub_dir):
         sub_dir = self.mount_point_dir / mount_sub_dir
         if not sub_dir.exists():
             print("Mount sub dir {} does not exist. Creating it...".format(sub_dir))
             sub_dir.mkdir()
         if not sub_dir.is_dir():
             return False, "{} is not a directory".format(sub_dir)
-        if not self.is_empty_dir(sub_dir):
+        if not self._is_empty_dir(sub_dir):
             return False, "{} is not empty".format(sub_dir)
 
         return True, None
 
-    def is_empty_dir(self, path_dir):
+    def _is_empty_dir(self, path_dir):
         try:
             next(path_dir.iterdir())
             return False
@@ -102,7 +102,6 @@ class MyWindow(Gtk.Window):
             check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("exit code={}\nstdout={}\nstderr={}".format(proc.returncode, proc.stdout, proc.stderr))
 
-        time.sleep(3)
         self.info_label("Checking NAS is online...")
         status, msg = self.phanNAS.check_online()
         if not status:
