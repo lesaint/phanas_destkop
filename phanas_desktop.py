@@ -1,4 +1,5 @@
 import gi
+import io
 import os
 import pathlib
 import platform
@@ -25,6 +26,13 @@ class PhanNas:
     def __init__(self):
         self.mount_dir_path = Path(str(home_dir) + "/" + MOUNT_DIR_NAME)
         print("Mount dir={}".format(self.mount_dir_path))
+
+    #def check_system_prerequisites(self):
+        # check cifs-utils is installed
+        # from https://askubuntu.com/a/336739
+        # $ apt-cache policy cifs-utils
+        #
+        # TODO check credentials file is present and has correct permissions (600)
 
     def check_online(self):
         if self._ping(self.nas_host):
@@ -58,23 +66,67 @@ class PhanNas:
         return self._connect_drive("sys", "sys")
 
     def _connect_drive(self, nas_drive, mount_sub_dir):
-        sub_dir = self.mount_dir_path / mount_sub_dir
-        if not sub_dir.exists():
-            print("Mount sub dir {} does not exist. Creating it...".format(sub_dir))
-            sub_dir.mkdir()
-        if not sub_dir.is_dir():
-            return False, "{} is not a directory".format(sub_dir)
-        if not self._is_empty_dir(sub_dir):
-            return False, "{} is not empty".format(sub_dir)
+        device = "//nas/{}".format(nas_drive)
+        sub_dir_path = self.mount_dir_path / mount_sub_dir
+
+        print("Mounting {} into {}... ".format(device, sub_dir_path))
+
+        mounted, msg = self._is_already_mounted(sub_dir_path, device)
+        if mounted:
+            print("already mounted")
+            return True, None
+        if msg is not None:
+            return False, msg
+
+        status, msg = self._check_mount_dir(sub_dir_path)
+        if not status:
+            return False, msg
+
+        # TODO mount device
 
         return True, None
 
-    def _is_empty_dir(self, path_dir):
+    def _check_mount_dir(self, sub_dir_path):
+        if not sub_dir_path.exists():
+            print("Mount sub dir {} does not exist. Creating it...".format(sub_dir_path))
+            sub_dir_path.mkdir()
+            return True, None
+        if not sub_dir_path.is_dir():
+            return False, "{} is not a directory".format(sub_dir_path)
+        if not self._is_empty_dir(sub_dir_path):
+            return False, "{} is not empty".format(sub_dir_path)
+
+        return True, None
+
+    def _is_empty_dir(self, dir_path):
         try:
-            next(path_dir.iterdir())
+            next(dir_path.iterdir())
             return False
         except StopIteration as e:
             return True
+
+    def _is_already_mounted(self, dir_path, expected_device):
+        if not os.path.ismount(str(dir_path)):
+            return False, None
+
+        command = [ "/bin/findmnt",
+            # exit with 1 if directory is not mounted
+            "--target", dir_path,
+            # do not output column headers
+            "--noheadings",
+            # output only the device
+            "--output", "SOURCE" ]
+
+        findmount_process = subprocess.run(command,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        if findmount_process.returncode == 1:
+            return False, None
+
+        actual_device = findmount_process.stdout
+        if expected_device == actual_device.split("\n")[0]:
+            return True, None
+        else:
+            return False, "{} mounted to the wrong device: {}".format(dir_path, actual_device)
 
 
 
@@ -119,7 +171,7 @@ class MyWindow(Gtk.Window):
         GLib.idle_add(Gtk.main_quit)
 
     def failure(self, msg):
-        print(msg)
+        print("[ERROR]  " + msg)
         self.info_label(msg)
 
     def info_label(self, text):
@@ -130,7 +182,7 @@ class MyWindow(Gtk.Window):
         # return false to not be called again
         return False
 
-print("{} start...".format(PROGRAM_NAME))
+print("{} started".format(PROGRAM_NAME))
 
 win = MyWindow()
 win.connect("destroy", Gtk.main_quit)
