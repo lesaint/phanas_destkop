@@ -37,14 +37,13 @@ class PhanNas:
 
     def __init__(self):
         self.mount_dir_path = Path(str(home_dir) + "/" + MOUNT_DIR_NAME)
+        self.credential_file_path = Path(script_dir) / ".phanas"
         print("Mount dir={}".format(self.mount_dir_path))
 
-    #def check_system_prerequisites(self):
+    # def check_system_prerequisites(self):
         # check cifs-utils is installed
         # from https://askubuntu.com/a/336739
         # $ apt-cache policy cifs-utils
-        #
-        # TODO check credentials file is present and has correct permissions (600)
 
     def check_online(self):
         if self._ping(self.nas_host):
@@ -68,11 +67,19 @@ class PhanNas:
         # call local ping command, suppress stdout and stderr output as we only care about exit code
         return subprocess.call(command, stdout=DEVNULL, stderr=DEVNULL) == 0
 
-    def check_mount_dir(self):
-        if self.mount_dir_path.is_dir():
-            return True, None
-        else:
+    def check_file_prerequisites(self):
+        if not self.mount_dir_path.is_dir():
             return False, "mount dir does not exist"
+
+        if not self.credential_file_path.is_file():
+            return False, "crediential file is missing"
+
+        stats = self.credential_file_path.stat()
+        # see https://stackoverflow.com/a/5337329
+        if oct(stats.st_mode)[-3:] != "600":
+            return False, "Permission of {} must be 600".format(self.credential_file_path)
+
+        return True, None
 
     def connect_drives(self):
         global_status = True
@@ -153,7 +160,7 @@ class PhanNas:
             return False, "{} mounted to the wrong device: {}".format(dir_path, actual_device)
 
     def _mount_drive(self, dir_path, device):
-        mount_options = "uid=1001,vers=2.1,credentials={}/.phanas".format(script_dir)
+        mount_options = "uid=1001,vers=2.1,credentials={}".format(self.credential_file_path)
         command = [
             "sudo",
             # will fail if password needed => require sudoers to be configured in advance
@@ -217,8 +224,8 @@ class MyWindow(Gtk.Window):
         if not status:
             self.failure(msg)
             return
-        self.info_label("Checking mount dir...")
-        status, msg = self.phanNAS.check_mount_dir()
+        self.info_label("Checking file prerequisites...")
+        status, msg = self.phanNAS.check_file_prerequisites()
         if not status:
             self.failure(msg)
             return
