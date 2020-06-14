@@ -1,12 +1,15 @@
 import gi
 import subprocess
 import platform
+import sys
 import threading
 import time
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
+
+script_dir = sys.path[0]
 
 class MyWindow(Gtk.Window):
     def __init__(self):
@@ -29,7 +32,7 @@ class MyWindow(Gtk.Window):
 
     def do_things(self):
         self.info_label("Calling test.sh")
-        proc = subprocess.run("/home/lesaint/scripts/nas_mount/test.sh", 
+        proc = subprocess.run(script_dir + "/test.sh", 
             check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("exit code={}\nstdout={}\nstderr={}".format(proc.returncode, proc.stdout, proc.stderr))
 
@@ -41,8 +44,7 @@ class MyWindow(Gtk.Window):
                 print("{} is online".format(host))
             else:
                 print("{} is not online".format(host))
-        
-        time.sleep(3)
+
         self.info_label("Connecting NAS drives...")
         time.sleep(3)
         self.info_label("All NAS drives connected!")
@@ -72,6 +74,8 @@ class MyWindow(Gtk.Window):
 
         # call local ping command, suppress stdout and stderr output as we only care about exit code
         return subprocess.call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+
+print(type(script_dir))
 
 
 win = MyWindow()
