@@ -1,4 +1,5 @@
 import gi
+import getpass
 import io
 import os
 import pathlib
@@ -15,6 +16,14 @@ from subprocess import PIPE, DEVNULL
 
 PROGRAM_NAME = "PhanNas Desktop"
 MOUNT_DIR_NAME = "__NAS__"
+NAS_DRIVES = [
+    "backup", "bds", "dev", "emilie", "enfants", "films", "jeux",
+    "musique", "phan", "photos", "programs", "series", "sys", "videos", "vrac"
+    # deprecated?
+    , "lesaint"
+    # hidden
+    , "xxx"
+]
 
 # from https://stackoverflow.com/a/4028943
 home_dir = Path.home()
@@ -67,7 +76,7 @@ class PhanNas:
         return self._connect_drive("sys", "sys")
 
     def _connect_drive(self, nas_drive, mount_sub_dir):
-        device = "//nas/{}".format(nas_drive)
+        device = "//{}/{}".format(self.nas_host, nas_drive)
         sub_dir_path = self.mount_dir_path / mount_sub_dir
 
         print("Mounting {} into {}... ".format(device, sub_dir_path))
@@ -151,6 +160,22 @@ class PhanNas:
         else:
             return False, "Failed to mount {} in {}: {}".format(device, dir_path, p.stderr)
 
+    def generate_sudoers(self, user):
+        mnt_aliases = list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(self.nas_host, x, self.mount_dir_path, x), NAS_DRIVES))
+        umnt_aliases = list(map(lambda x: "/bin/umount {}/{}".format(self.mount_dir_path, x), NAS_DRIVES))
+
+        txt = """
+Cmnd_Alias MOUNT_NAS = \\
+{}
+Cmnd_Alias UMOUNT_NAS = \\
+{}
+
+# Allow user {} to mount and umount NAS drives without password
+{} ALL=(ALL) NOPASSWD: MOUNT_NAS, UMOUNT_NAS
+""".format(", \\\n".join(mnt_aliases), ", \\\n".join(umnt_aliases), user, user)
+        
+        return txt
+
 
 
 
@@ -175,6 +200,8 @@ class MyWindow(Gtk.Window):
         self.thread.start()
 
     def do_things(self):
+        print(self.phanNAS.generate_sudoers(getpass.getuser()))
+
         self.info_label("Checking NAS is online...")
         status, msg = self.phanNAS.check_online()
         if not status:
