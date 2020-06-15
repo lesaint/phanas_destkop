@@ -20,12 +20,10 @@ from subprocess import PIPE, DEVNULL
 PROGRAM_NAME = "PhanNas Desktop"
 MOUNT_DIR_NAME = "__NAS__"
 NAS_DRIVES = [
-    "backup", "bds", "dev", "emilie", "enfants", "films", "jeux",
-    "musique", "phan", "photos", "programs", "series", "sys", "videos", "vrac"
+    "backup", "bds", "emilie", "enfants", "films", "jeux",
+    "musique", "phan", "photos", "programs", "series", "sys", "videos", "vrac", "lesaint"
     # deprecated?
-    , "lesaint"
-    # hidden
-    , "xxx"
+    #, "dev"
 ]
 
 # from https://stackoverflow.com/a/4028943
@@ -35,7 +33,6 @@ script_dir = Path(sys.path[0])
 
 class PhanNas:
     nas_host = "nas"
-    nas_username = None
     base_mount_dir_path = None
     mount_dir_path = None
     credential_file_path = None
@@ -48,6 +45,7 @@ class PhanNas:
         self.base_mount_dir_path = Path("/" + MOUNT_DIR_NAME)
         self.credential_file_path = Path(script_dir) / ".phanas"
         self.linux_username = getpass.getuser()
+        self.mount_dir_path = self.base_mount_dir_path / self.linux_username
         print("Mount dir={}".format(self.base_mount_dir_path))
 
     # def check_system_prerequisites(self):
@@ -90,10 +88,6 @@ class PhanNas:
         return True, None
 
     def _check_and_load_credentials_file(self):
-        # already called
-        if self.nas_username:
-            return True, None
-
         if not self.credential_file_path.is_file():
             return False, "crediential file is missing"
 
@@ -122,19 +116,15 @@ class PhanNas:
             if not nas_pwd:
                 return False, "Missing password in credentials file"
 
-        mount_dir_path = self.base_mount_dir_path / nas_username
-        if not mount_dir_path.exists():
-            print("mount dir {} for NAS username does not exist, creating it...".format(mount_dir_path))
-            mount_dir_path.mkdir()
-        elif not mount_dir_path.is_dir():
-            return False, "{} should be a directory".format(mount_dir_path)
-
-        self.nas_username = nas_username
-        self.mount_dir_path = mount_dir_path
-
         return True, None
 
     def connect_drives(self):
+        if not self.mount_dir_path.exists():
+            print("mount dir {} for user does not exist, creating it...".format(self.mount_dir_path))
+            self.mount_dir_path.mkdir()
+        elif not self.mount_dir_path.is_dir():
+            return False, "{} should be a directory".format(self.mount_dir_path)
+
         global_status = True
         global_msg = []
         for drive in NAS_DRIVES:
@@ -213,7 +203,7 @@ class PhanNas:
             return False, "{} mounted to the wrong device: {}".format(dir_path, actual_device)
 
     def _mount_drive(self, dir_path, device):
-        mount_options = "uid=1001,vers=2.1,credentials={}".format(self.credential_file_path)
+        mount_options = "uid={},vers=2.1,credentials={}".format(os.getuid(), self.credential_file_path)
         command = [
             "sudo",
             # will fail if password needed => require sudoers to be configured in advance
@@ -290,8 +280,6 @@ class PhanNas:
 
 
     def generate_sudoers(self):
-        self._check_and_load_credentials_file()
-
         mnt_aliases = list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(self.nas_host, x, self.mount_dir_path, x), NAS_DRIVES))
         umnt_aliases = list(map(lambda x: "/bin/umount {}/{}".format(self.mount_dir_path, x), NAS_DRIVES))
 
