@@ -276,18 +276,20 @@ class PhanNas:
 
 
     def generate_sudoers(self):
+        mnt_alias = "{}_MOUNT_NAS".format(self.linux_username.upper())
         mnt_aliases = list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(self.nas_host, x, self.mount_dir_path, x), NAS_DRIVES))
+        umnt_alias = "{}_UMOUNT_NAS".format(self.linux_username.upper())
         umnt_aliases = list(map(lambda x: "/bin/umount {}/{}".format(self.mount_dir_path, x), NAS_DRIVES))
 
         txt = """
-Cmnd_Alias MOUNT_NAS = \\
+Cmnd_Alias {} = \\
 {}
-Cmnd_Alias UMOUNT_NAS = \\
+Cmnd_Alias {} = \\
 {}
 
 # Allow user {} to mount and umount NAS drives without password
-{} ALL=(ALL) NOPASSWD: MOUNT_NAS, UMOUNT_NAS
-""".format(", \\\n".join(mnt_aliases), ", \\\n".join(umnt_aliases), self.linux_username, self.linux_username)
+{} ALL=(ALL) NOPASSWD: {}, {}
+""".format(mnt_alias, ", \\\n".join(mnt_aliases), umnt_alias, ", \\\n".join(umnt_aliases), self.linux_username, self.linux_username, mnt_alias, umnt_alias)
         
         return txt
 
