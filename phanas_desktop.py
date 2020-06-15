@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import gi
 import getpass
 import io
@@ -307,8 +308,6 @@ Cmnd_Alias UMOUNT_NAS = \\
         return txt
 
 
-
-
 class MyWindow(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, title=PROGRAM_NAME,
@@ -330,8 +329,6 @@ class MyWindow(Gtk.Window):
         self.thread.start()
 
     def do_things(self):
-        print(self.phanNAS.generate_sudoers())
-
         self.info_label("Checking NAS is online...")
         status, msg = self.phanNAS.check_online()
         if not status:
@@ -372,12 +369,34 @@ class MyWindow(Gtk.Window):
         # return false to not be called again
         return False
 
-print("{} started".format(PROGRAM_NAME))
+def desktop():
+    print("{} started".format(PROGRAM_NAME))
 
-win = MyWindow()
-win.connect("destroy", Gtk.main_quit)
-win.show_all()
-Gtk.main()
+    win = MyWindow()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
 
-# called after GTK process has ended (ie. window closed and/or Gtk.main_quit is called)
-print("{} stopped".format(PROGRAM_NAME))
+    # called after GTK process has ended (ie. window closed and/or Gtk.main_quit is called)
+    print("{} stopped".format(PROGRAM_NAME))
+
+def generate_sudoers():
+    phanNAS = PhanNas()
+    status, msg = phanNAS.check_file_prerequisites()
+    if not status:
+        print("[ERROR]  " + msg)
+        return
+    print(phanNAS.generate_sudoers())
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-g", "--generate-sudoers", help="generate sudoers commands for current linux and nas user", action="store_true")
+    args = parser.parse_args()
+    if args.generate_sudoers:
+       generate_sudoers()
+    else:
+        desktop() 
+
+if __name__ == '__main__':
+   main()
