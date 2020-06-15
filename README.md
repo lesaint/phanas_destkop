@@ -19,7 +19,14 @@ The project is public only because it contains no sensitive information and make
 
 ## how to use
 
-Add `phanas_desktop.py` to Gnome's startup programs, it will:
+Add `phanas_desktop.py` to Gnome's startup programs:
+* `ALT+F2`, input `gnome-session-properties`
+* add startup program:
+	* Name: `PhanNas Desktop`
+	* Command: `/home/lesaint/scripts/phanas_desktop/phanas_desktop.py`
+	* Comment: (empty)
+
+It will:
 
 1. spawn a minimal GTK+ window showing progress status and errors if any
 2. check NAS is online
@@ -27,6 +34,7 @@ Add `phanas_desktop.py` to Gnome's startup programs, it will:
 	* mounting outside `$HOME` is required to avoid Nautilus loading the mounts and slowing down Gnome's login
 4. create directory `$HOME/__NAS__` and create symlinks to each mounted drive
 5. add directory `$HOME/__NAS__` to Nautilus's bookmarks
+6. automatically close the windows 3 seconds after successful completion
 
 
 # License
