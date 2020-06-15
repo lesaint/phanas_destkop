@@ -33,7 +33,7 @@ It will:
 3. mount NAS drives to directories `/__NAS__/{username}/{drive_name}`
 	* mounting outside `$HOME` is required to avoid Nautilus loading the mounts and slowing down Gnome's login
 4. create directory `$HOME/__NAS__` and create symlinks to each mounted drive
-5. add directory `$HOME/__NAS__` to Nautilus's bookmarks
+5. TODO: add directory `$HOME/__NAS__` to Nautilus's bookmarks
 6. automatically close the windows 3 seconds after successful completion
 
 
