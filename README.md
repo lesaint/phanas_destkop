@@ -13,6 +13,7 @@ The project is public only because it contains no sensitive information and make
 * python 3 installed with `gi` installed and `GTK 3.0`
 * host `nas` is defined on the machine
 * directory `/__NAS__` must exist
+	* `sudo mkdir /__NAS__ && sudo chown o+x /__NAS__`
 * an authentication file `{clone_directory}/.phanas` exists, *with 600 permission* and the following content:
     ```
     username=XXXX
