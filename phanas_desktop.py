@@ -280,7 +280,10 @@ class PhanNas:
             symlink_path.symlink_to(symlink_target, target_is_directory=True)
         elif not symlink_path.is_symlink():
             return False, "{} is not a symlink".format(symlink_path)
-        # FIXME verify target of symlink is the expected one!
+        else:
+            actual_target = symlink_path.resolve()
+            if actual_target != symlink_target:
+                return False, "{} does not target expected directory (got={}, expected={})".format(symlink_path, actual_target, symlink_target)
 
         return True, None
 
