@@ -221,10 +221,6 @@ class PhanNas:
             return False, "Failed to mount {} in {}: {}".format(device, dir_path, p.stderr)
 
     def configure_desktop(self):
-        # TODO: create or verify __NAS__ dir in home directory with symlinks to each
-        #       drive mounted
-        #       that __NAS__ dir must not have any write permission to avoid user messing around with it
-        #       (but we will give ourselves these permissions to be able to add/remove symlinks)
         status, msg = self._configure_nas_directory()
         if not status:
             return False, msg
