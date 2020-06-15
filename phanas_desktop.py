@@ -36,7 +36,10 @@ class PhanNas:
     nas_host = "nas"
 
     def __init__(self):
-        self.mount_dir_path = Path(str(home_dir) + "/" + MOUNT_DIR_NAME)
+        # mount_dir_path must not be location in /home or /media to not have drive loaded by Nautilus
+        # and slow down Gnome's login
+        # logical links in /home to mounted drive outside /home are not loaded by Nautilus
+        self.mount_dir_path = Path("/" + MOUNT_DIR_NAME)
         self.credential_file_path = Path(script_dir) / ".phanas"
         print("Mount dir={}".format(self.mount_dir_path))
 
@@ -70,6 +73,8 @@ class PhanNas:
     def check_file_prerequisites(self):
         if not self.mount_dir_path.is_dir():
             return False, "mount dir does not exist"
+
+        # TODO check permission will allow to create subdirectory per NAS user
 
         if not self.credential_file_path.is_file():
             return False, "crediential file is missing"
@@ -224,16 +229,29 @@ class MyWindow(Gtk.Window):
         if not status:
             self.failure(msg)
             return
+        
         self.info_label("Checking file prerequisites...")
         status, msg = self.phanNAS.check_file_prerequisites()
         if not status:
             self.failure(msg)
             return
+
+        # TODO: create or verify subdir for current NAS user
+
         self.info_label("Connecting NAS drives...")
         status, msg = self.phanNAS.connect_drives()
         if not status:
             self.failure(msg)
             return
+        
+        # TODO: create or verify __NAS__ dir in home directory with symlinks to each
+        #       drive mounted
+        #       that __NAS__ dir must not have any write permission to avoid user messing around with it
+        #       (but we will give ourselves these permissions to be able to add/remove symlinks)
+
+        # TODO: add/ensure bookmark to linux users' __NAS__ dir exists in Nautilus
+        #       just add URL of directory to ~/.gtk-bookmarks
+        
         self.info_label("All NAS drives connected!\nClosing in 3 seconds...")
         time.sleep(3)
         GLib.idle_add(Gtk.main_quit)
