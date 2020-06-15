@@ -7,6 +7,10 @@ The project is public only because it contains no sensitive information and make
 
 ## requirements
 
+* package `cifs-utils` installed
+	* use `apt-cache policy cifs-utils` to verify it's installed
+	* otherwise `sudo apt-get install cifs-utils`
+* python 3 installed with `gi` installed and `GTK 3.0`
 * host `nas` is defined on the machine
 * directory `/__NAS__` must exist
 * an authentication file `{clone_directory}/.phanas` exists, *with 600 permission* and the following content:
