@@ -28,7 +28,7 @@ Add `phanas_desktop.py` to Gnome's startup programs:
 * `ALT+F2`, input `gnome-session-properties`
 * add startup program:
 	* Name: `PhanNas Desktop`
-	* Command: `/home/lesaint/scripts/phanas_desktop/phanas_desktop.py`
+	* Command: `/home/{username}/scripts/phanas_desktop/phanas_desktop.py`
 	* Comment: (empty)
 
 It will:
