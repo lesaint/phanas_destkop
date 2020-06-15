@@ -34,14 +34,18 @@ script_dir = Path(sys.path[0])
 
 class PhanNas:
     nas_host = "nas"
+    nas_username = None
+    base_mount_dir_path = None
+    mount_dir_path = None
+    credential_file_path = None
 
     def __init__(self):
-        # mount_dir_path must not be location in /home or /media to not have drive loaded by Nautilus
+        # base_mount_dir_path must not be location in /home or /media to not have drive loaded by Nautilus
         # and slow down Gnome's login
         # logical links in /home to mounted drive outside /home are not loaded by Nautilus
-        self.mount_dir_path = Path("/" + MOUNT_DIR_NAME)
+        self.base_mount_dir_path = Path("/" + MOUNT_DIR_NAME)
         self.credential_file_path = Path(script_dir) / ".phanas"
-        print("Mount dir={}".format(self.mount_dir_path))
+        print("Mount dir={}".format(self.base_mount_dir_path))
 
     # def check_system_prerequisites(self):
         # check cifs-utils is installed
@@ -71,10 +75,21 @@ class PhanNas:
         return subprocess.call(command, stdout=DEVNULL, stderr=DEVNULL) == 0
 
     def check_file_prerequisites(self):
-        if not self.mount_dir_path.is_dir():
+        if not self.base_mount_dir_path.is_dir():
             return False, "mount dir does not exist"
 
         # TODO check permission will allow to create subdirectory per NAS user
+
+        status, msg = self._check_and_load_credentials_file()
+        if not status:
+            return False, msg
+
+        return True, None
+
+    def _check_and_load_credentials_file(self):
+        # already called
+        if self.nas_username:
+            return True, None
 
         if not self.credential_file_path.is_file():
             return False, "crediential file is missing"
@@ -83,6 +98,36 @@ class PhanNas:
         # see https://stackoverflow.com/a/5337329
         if oct(stats.st_mode)[-3:] != "600":
             return False, "Permission of {} must be 600".format(self.credential_file_path)
+
+        with open(self.credential_file_path, 'r') as f:
+            user_line_prefix = "username="
+            pwd_line_prefix = "password="
+
+            user_line = f.readline()
+            if not user_line.startswith(user_line_prefix):
+                return False, "Wrong first line in credentials file"
+            # substring without prefix nor ending line return
+            nas_username = user_line[len(user_line_prefix):-1]
+            print("PhanNas username from credentials file={}".format(nas_username))
+            if not nas_username:
+                return False, "Missing username in credentials file"
+
+            pwd_line = f.readline()
+            if not pwd_line.startswith(pwd_line_prefix):
+                return False, "Wrong second line in credentials file"
+            nas_pwd = pwd_line[len(pwd_line_prefix):-1]
+            if not nas_pwd:
+                return False, "Missing password in credentials file"
+
+        mount_dir_path = self.base_mount_dir_path / nas_username
+        if not mount_dir_path.exists():
+            print("mount dir {} for NAS username does not exist, creating it...".format(mount_dir_path))
+            mount_dir_path.mkdir()
+        elif not mount_dir_path.is_dir():
+            return False, "{} should be a directory".format(mount_dir_path)
+
+        self.nas_username = nas_username
+        self.mount_dir_path = mount_dir_path
 
         return True, None
 
@@ -183,6 +228,8 @@ class PhanNas:
             return False, "Failed to mount {} in {}: {}".format(device, dir_path, p.stderr)
 
     def generate_sudoers(self, user):
+        self._check_and_load_credentials_file()
+
         mnt_aliases = list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(self.nas_host, x, self.mount_dir_path, x), NAS_DRIVES))
         umnt_aliases = list(map(lambda x: "/bin/umount {}/{}".format(self.mount_dir_path, x), NAS_DRIVES))
 
@@ -235,8 +282,6 @@ class MyWindow(Gtk.Window):
         if not status:
             self.failure(msg)
             return
-
-        # TODO: create or verify subdir for current NAS user
 
         self.info_label("Connecting NAS drives...")
         status, msg = self.phanNAS.connect_drives()
