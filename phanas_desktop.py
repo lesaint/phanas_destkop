@@ -38,6 +38,7 @@ class PhanNas:
     base_mount_dir_path = None
     mount_dir_path = None
     credential_file_path = None
+    linux_username = None
 
     def __init__(self):
         # base_mount_dir_path must not be location in /home or /media to not have drive loaded by Nautilus
@@ -45,6 +46,7 @@ class PhanNas:
         # logical links in /home to mounted drive outside /home are not loaded by Nautilus
         self.base_mount_dir_path = Path("/" + MOUNT_DIR_NAME)
         self.credential_file_path = Path(script_dir) / ".phanas"
+        self.linux_username = getpass.getuser()
         print("Mount dir={}".format(self.base_mount_dir_path))
 
     # def check_system_prerequisites(self):
@@ -227,7 +229,63 @@ class PhanNas:
         else:
             return False, "Failed to mount {} in {}: {}".format(device, dir_path, p.stderr)
 
-    def generate_sudoers(self, user):
+    def configure_desktop(self):
+        # TODO: create or verify __NAS__ dir in home directory with symlinks to each
+        #       drive mounted
+        #       that __NAS__ dir must not have any write permission to avoid user messing around with it
+        #       (but we will give ourselves these permissions to be able to add/remove symlinks)
+        status, msg = self._configure_nas_directory()
+        if not status:
+            return False, msg
+
+        # TODO: add/ensure bookmark to linux users' __NAS__ dir exists in Nautilus
+        #       just add URL of directory to ~/.gtk-bookmarks
+
+        return True, None
+
+    def _configure_nas_directory(self):
+        user_nas_dir_path = Path.home() / MOUNT_DIR_NAME
+        if not user_nas_dir_path.exists():
+            print("Creating user NAS directory {}...".format(user_nas_dir_path))
+            user_nas_dir_path.mkdir()
+        elif not user_nas_dir_path.is_dir():
+            return False, "User NAS directory {} is not a directory".format(user_nas_dir_path)
+
+        status, msg = self._create_symlinks(user_nas_dir_path)
+        if not status:
+            return False, msg
+
+        return True, None
+        
+    def _create_symlinks(self, user_nas_dir_path):
+        global_status = True
+        global_msg = []
+        for drive in NAS_DRIVES:
+            status, msg = self._create_symlink(user_nas_dir_path, drive)
+            if not status:
+                global_status = False
+                global_msg.append(msg)
+
+        if not global_status:
+            return False, "\n".join(global_msg)
+
+        return True, None
+
+    def _create_symlink(self, user_nas_dir_path, drive):
+        symlink_path = user_nas_dir_path / drive
+        symlink_target = self.mount_dir_path / drive
+
+        if not symlink_path.exists():
+            print("Creating symlink {}".format(symlink_path))
+            symlink_path.symlink_to(symlink_target, target_is_directory=True)
+        elif not symlink_path.is_symlink():
+            return False, "{} is not a symlink".format(symlink_path)
+        # FIXME verify target of symlink is the expected one!
+
+        return True, None
+
+
+    def generate_sudoers(self):
         self._check_and_load_credentials_file()
 
         mnt_aliases = list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(self.nas_host, x, self.mount_dir_path, x), NAS_DRIVES))
@@ -241,7 +299,7 @@ Cmnd_Alias UMOUNT_NAS = \\
 
 # Allow user {} to mount and umount NAS drives without password
 {} ALL=(ALL) NOPASSWD: MOUNT_NAS, UMOUNT_NAS
-""".format(", \\\n".join(mnt_aliases), ", \\\n".join(umnt_aliases), user, user)
+""".format(", \\\n".join(mnt_aliases), ", \\\n".join(umnt_aliases), self.linux_username, self.linux_username)
         
         return txt
 
@@ -269,7 +327,7 @@ class MyWindow(Gtk.Window):
         self.thread.start()
 
     def do_things(self):
-        print(self.phanNAS.generate_sudoers(getpass.getuser()))
+        print(self.phanNAS.generate_sudoers())
 
         self.info_label("Checking NAS is online...")
         status, msg = self.phanNAS.check_online()
@@ -288,14 +346,12 @@ class MyWindow(Gtk.Window):
         if not status:
             self.failure(msg)
             return
-        
-        # TODO: create or verify __NAS__ dir in home directory with symlinks to each
-        #       drive mounted
-        #       that __NAS__ dir must not have any write permission to avoid user messing around with it
-        #       (but we will give ourselves these permissions to be able to add/remove symlinks)
 
-        # TODO: add/ensure bookmark to linux users' __NAS__ dir exists in Nautilus
-        #       just add URL of directory to ~/.gtk-bookmarks
+        self.info_label("Configuring {} desktop...")
+        status, msg = self.phanNAS.configure_desktop()
+        if not status:
+            self.failure(msg)
+            return        
         
         self.info_label("All NAS drives connected!\nClosing in 3 seconds...")
         time.sleep(3)
