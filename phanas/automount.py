@@ -9,7 +9,7 @@ import time
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
-from pathlib import Path, PurePath
+from pathlib import Path
 from subprocess import PIPE
 
 PROGRAM_NAME = "PhanNas Desktop"
@@ -152,7 +152,7 @@ class AutoMount:
             return True
 
     def __is_already_mounted(self, dir_path, expected_device):
-        if not os.path.ismount(str(dir_path)):
+        if not os.path.ismount(dir_path):
             return False, None
 
         command = [ "/bin/findmnt",
