@@ -12,7 +12,7 @@ from pathlib import Path, PurePath
 from phanas import constants
 from subprocess import PIPE, DEVNULL
 
-class PhanNas:
+class AutoMount:
     env = phanas.env.Env()
 
     def __init__(self):
@@ -258,7 +258,7 @@ class MyWindow(Gtk.Window):
 
         self.connect("show", self.on_window_show)
 
-        self.phanNAS = PhanNas()
+        self.autoMount = AutoMount()
 
     def on_window_show(self, widget):
         self.thread = threading.Thread(target=self.do_things)
@@ -267,25 +267,25 @@ class MyWindow(Gtk.Window):
 
     def do_things(self):
         self.info_label("Checking NAS is online...")
-        status, msg = self.phanNAS.check_online()
+        status, msg = self.autoMount.check_online()
         if not status:
             self.failure(msg)
             return
         
         self.info_label("Checking file prerequisites...")
-        status, msg = self.phanNAS.check_file_prerequisites()
+        status, msg = self.autoMount.check_file_prerequisites()
         if not status:
             self.failure(msg)
             return
 
         self.info_label("Connecting NAS drives...")
-        status, msg = self.phanNAS.connect_drives()
+        status, msg = self.autoMount.connect_drives()
         if not status:
             self.failure(msg)
             return
 
         self.info_label("Configuring {} desktop...")
-        status, msg = self.phanNAS.configure_desktop()
+        status, msg = self.autoMount.configure_desktop()
         if not status:
             self.failure(msg)
             return        
