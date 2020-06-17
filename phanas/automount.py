@@ -1,19 +1,36 @@
+import getpass
 import gi
 import os
-import phanas.env
-import platform
+import phanas.nas
 import subprocess
+import sys
 import threading
 import time
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 from pathlib import Path, PurePath
-from phanas import constants
-from subprocess import PIPE, DEVNULL
+from subprocess import PIPE
+
+PROGRAM_NAME = "PhanNas Desktop"
+MOUNT_DIR_NAME = "__NAS__"
+
+class Env:
+    linux_username = getpass.getuser()
+    # from https://stackoverflow.com/a/4028943
+    home_dir_path = Path.home()
+    # base_mount_dir_path must not be location in /home or /media to not have drive loaded by Nautilus
+    # and slow down Gnome's login
+    # logical links in /home to mounted drive outside /home are not loaded by Nautilus
+    base_mount_dir_path = Path("/" + MOUNT_DIR_NAME)
+    mount_dir_path = base_mount_dir_path / linux_username
+    # from https://stackoverflow.com/a/31867043
+    __script_dir = Path(sys.path[0])
+    credential_file_path = Path(__script_dir) / ".phanas"
 
 class AutoMount:
-    env = phanas.env.Env()
+    env = Env()
+    nas = phanas.nas.Nas()
 
     def __init__(self):
         print("Mount dir={}".format(self.env.base_mount_dir_path))
@@ -24,26 +41,11 @@ class AutoMount:
         # $ apt-cache policy cifs-utils
 
     def check_online(self):
-        if self.__ping(constants.NAS_HOST):
-            return True, None
-        else:
-            return False, "{} is not online".format(constants.NAS_HOST)
+        status, msg = self.nas.check_online()
+        if not status:
+            return False, msg
 
-    # from https://stackoverflow.com/a/32684938
-    def __ping(self, host):
-        """
-        Returns True if host (str) responds to a ping request.
-        Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
-        """
-
-        # Option for the number of packets as a function of
-        param = "-n" if platform.system().lower()=="windows" else "-c"
-
-        # Building the command. Ex: "ping -c 1 google.com"
-        command = ["ping", param, "1", host]
-
-        # call local ping command, suppress stdout and stderr output as we only care about exit code
-        return subprocess.call(command, stdout=DEVNULL, stderr=DEVNULL) == 0
+        return True, None
 
     def check_file_prerequisites(self):
         if not self.env.base_mount_dir_path.is_dir():
@@ -97,7 +99,7 @@ class AutoMount:
 
         global_status = True
         global_msg = []
-        for drive in constants.NAS_DRIVES:
+        for drive in self.nas.drives:
             status, msg = self.__connect_drive(drive, drive)
             if not status:
                 global_status = False
@@ -106,7 +108,7 @@ class AutoMount:
         return global_status, "\n".join(global_msg)
 
     def __connect_drive(self, nas_drive, mount_sub_dir):
-        device = "//{}/{}".format(constants.NAS_HOST, nas_drive)
+        device = "//{}/{}".format(self.nas.host, nas_drive)
         sub_dir_path = self.env.mount_dir_path / mount_sub_dir
 
         print("Mounting {} into {}... ".format(device, sub_dir_path))
@@ -201,7 +203,7 @@ class AutoMount:
         return True, None
 
     def __configure_nas_directory(self):
-        user_nas_dir_path = self.env.home_dir_path / constants.MOUNT_DIR_NAME
+        user_nas_dir_path = self.env.home_dir_path / MOUNT_DIR_NAME
         if not user_nas_dir_path.exists():
             print("Creating user NAS directory {}...".format(user_nas_dir_path))
             user_nas_dir_path.mkdir()
@@ -217,7 +219,7 @@ class AutoMount:
     def ___create_symlinks(self, user_nas_dir_path):
         global_status = True
         global_msg = []
-        for drive in constants.NAS_DRIVES:
+        for drive in self.nas.drives:
             status, msg = self.__create_symlink(user_nas_dir_path, drive)
             if not status:
                 global_status = False
@@ -247,7 +249,7 @@ class AutoMount:
 
 class MyWindow(Gtk.Window):
     def __init__(self):
-        Gtk.Window.__init__(self, title=constants.PROGRAM_NAME,
+        Gtk.Window.__init__(self, title=PROGRAM_NAME,
             default_width=200, resizable=False)
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -307,7 +309,7 @@ class MyWindow(Gtk.Window):
         return False
 
 def run_gui():
-    print("{} started".format(constants.PROGRAM_NAME))
+    print("{} started".format(PROGRAM_NAME))
 
     win = MyWindow()
     win.connect("destroy", Gtk.main_quit)
@@ -315,4 +317,4 @@ def run_gui():
     Gtk.main()
 
     # called after GTK process has ended (ie. window closed and/or Gtk.main_quit is called)
-    print("{} stopped".format(constants.PROGRAM_NAME))
+    print("{} stopped".format(PROGRAM_NAME))
