@@ -5,6 +5,7 @@ import phanas.automount
 import phanas.nas
 import shutil
 import socket
+import stat
 import subprocess
 import tempfile
 
@@ -130,8 +131,13 @@ class KeePass:
 
         shutil.copyfile(self.__remote_keyfile_path, remote_keyfile_backup_path, follow_symlinks = False)
         shutil.copyfile(self.__local_keyfile_path, local_keyfile_backup_path, follow_symlinks = False)
+        self.__make_readonly(remote_keyfile_backup_path)
+        self.__make_readonly(local_keyfile_backup_path)
 
         return True, None
+
+    def __make_readonly(self, file_path):
+        os.chmod(file_path, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
     def __expire_old_backups(self, sync_backup_dir_path):
         if not sync_backup_dir_path.is_dir():
