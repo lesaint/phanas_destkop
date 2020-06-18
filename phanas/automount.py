@@ -175,7 +175,8 @@ class AutoMount:
             return False, "{} mounted to the wrong device: {}".format(dir_path, actual_device)
 
     def __mount_drive(self, dir_path, device):
-        mount_options = "uid={},vers=2.1,credentials={}".format(os.getuid(), self.env.credential_file_path)
+        # https://unix.stackexchange.com/a/104652 for file_mode and dir_mode => files can't be made executable on samdba drive (unless they all are executable)
+        mount_options = "uid={},gid={},vers=2.1,file_mode=0644,dir_mode=0755,credentials={}".format(os.getuid(), os.getgid(), self.env.credential_file_path)
         command = [
             "sudo",
             # will fail if password needed => require sudoers to be configured in advance
