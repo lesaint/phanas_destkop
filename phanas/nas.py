@@ -6,9 +6,10 @@ from subprocess import DEVNULL
 
 class Nas:
     host = "nas"
+    drive_sys = "sys"
     drives = [
         "backup", "bds", "emilie", "enfants", "films", "jeux",
-        "musique", "phan", "photos", "programs", "series", "sys", "videos", "vrac", "lesaint"
+        "musique", "phan", "photos", "programs", "series", drive_sys, "videos", "vrac", "lesaint"
         # deprecated?
         #, "dev"
     ]

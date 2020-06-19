@@ -20,6 +20,7 @@ class KeePass:
     __BACKUP_EXPIRATION_IN_DAYS = 60
 
     __automount_env = phanas.automount.Env()
+    __nas = phanas.nas.Nas()
 
     __linux_username = getpass.getuser()
     # see https://stackoverflow.com/a/799799
@@ -28,7 +29,7 @@ class KeePass:
     # from https://stackoverflow.com/a/31867043
     __script_dir = Path(sys.path[0])
     __credentials_file_path = Path(__script_dir) / ".kpx_phanas"
-    __sys_drive_path = __automount_env.mount_dir_path / "sys"
+    __sys_drive_path = __automount_env.mount_dir_path / __nas.drive_sys
 
     __KEYFILE_DIR_NAME = "keys"
     __keyfile_password = None
@@ -48,8 +49,7 @@ class KeePass:
         print("keepassxc-cli found: {}".format(self.__keepassxc_cli))
 
         # NAS is online
-        nas = phanas.nas.Nas()
-        status, msg = nas.check_online()
+        status, msg = self.__nas.check_online()
         if not status:
             return False, msg
 
