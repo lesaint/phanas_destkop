@@ -1,3 +1,4 @@
+import hashlib
 import os
 import stat
 
@@ -41,3 +42,18 @@ def is_empty_dir(dir_path):
 
 def make_readonly(file_path):
     os.chmod(file_path, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+
+def has_same_content(file_1_path, file_2_path):
+    return __compute_hash(file_1_path) == __compute_hash(file_2_path)
+
+def __compute_hash(file_path):
+    # from https://nitratine.net/blog/post/how-to-hash-files-in-python/
+    BLOCK_SIZE = 65536
+    file_hash = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        fb = f.read(BLOCK_SIZE)
+        while len(fb) > 0:
+            file_hash.update(fb)
+            fb = f.read(BLOCK_SIZE)
+
+    return file_hash.hexdigest()
