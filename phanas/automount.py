@@ -26,7 +26,8 @@ class Env:
     mount_dir_path = base_mount_dir_path / linux_username
     # from https://stackoverflow.com/a/31867043
     __script_dir = Path(sys.path[0])
-    credential_file_path = Path(__script_dir) / ".phanas"
+    deprecated_credential_file_path = Path(__script_dir) / ".phanas"
+    credential_file_path = Path(__script_dir) / ".smb_phanas"
 
 class AutoMount:
     env = Env()
@@ -60,6 +61,10 @@ class AutoMount:
         return True, None
 
     def __check_and_load_credentials_file(self):
+        status, msg = self.__migrate_from_deprecated_credentials_file()
+        if not status:
+            return False, msg
+
         if not self.env.credential_file_path.is_file():
             return False, "crediential file is missing"
 
@@ -90,6 +95,26 @@ class AutoMount:
 
         return True, None
 
+    def __migrate_from_deprecated_credentials_file(self):
+        if not self.env.deprecated_credential_file_path.is_file():
+            return True, None
+
+        if self.env.credential_file_path.is_file():
+            return False, "Both deprecated and new credentials file are present"
+        print("derecated credentials file detected, renaming it...")
+        os.rename(self.env.deprecated_credential_file_path, self.env.credential_file_path)
+
+        mounted_drives = []
+        for drive in self.nas.drives:
+            device, sub_dir_path = self.__drive_and_dir_for(drive, drive)
+            if sub_dir_path.is_dir() and os.path.ismount(sub_dir_path):
+                mounted_drives.append(drive)
+
+        if mounted_drives:
+            return False, "The following drives must be remounted: {}".format(", ".join(mounted_drives))
+
+        return True, None
+
     def connect_drives(self):
         if not self.env.mount_dir_path.exists():
             print("mount dir {} for user does not exist, creating it...".format(self.env.mount_dir_path))
@@ -108,9 +133,7 @@ class AutoMount:
         return global_status, "\n".join(global_msg)
 
     def __connect_drive(self, nas_drive, mount_sub_dir):
-        device = "//{}/{}".format(self.nas.host, nas_drive)
-        sub_dir_path = self.env.mount_dir_path / mount_sub_dir
-
+        device, sub_dir_path = self.__drive_and_dir_for(nas_drive, mount_sub_dir)
         print("Mounting {} into {}... ".format(device, sub_dir_path))
 
         mounted, msg = self.__is_already_mounted(sub_dir_path, device)
@@ -131,6 +154,12 @@ class AutoMount:
             return False, msg
 
         return True, None
+
+    def __drive_and_dir_for(self, nas_drive, mount_sub_dir):
+        device = "//{}/{}".format(self.nas.host, nas_drive)
+        sub_dir_path = self.env.mount_dir_path / mount_sub_dir
+
+        return device, sub_dir_path
 
     def __check_mount_dir(self, sub_dir_path):
         if not sub_dir_path.exists():
