@@ -2,6 +2,7 @@ import getpass
 import gi
 import os
 import phanas.nas
+import phanas.file_utils
 import subprocess
 import sys
 import threading
@@ -65,33 +66,10 @@ class AutoMount:
         if not status:
             return False, msg
 
-        if not self.env.credential_file_path.is_file():
-            return False, "crediential file is missing"
-
-        stats = self.env.credential_file_path.stat()
-        # see https://stackoverflow.com/a/5337329
-        if oct(stats.st_mode)[-3:] != "600":
-            return False, "Permission of {} must be 600".format(self.env.credential_file_path)
-
-        with open(self.env.credential_file_path, 'r') as f:
-            user_line_prefix = "username="
-            pwd_line_prefix = "password="
-
-            user_line = f.readline()
-            if not user_line.startswith(user_line_prefix):
-                return False, "Wrong first line in credentials file"
-            # substring without prefix nor ending line return
-            nas_username = user_line[len(user_line_prefix):-1]
-            print("PhanNas username from credentials file={}".format(nas_username))
-            if not nas_username:
-                return False, "Missing username in credentials file"
-
-            pwd_line = f.readline()
-            if not pwd_line.startswith(pwd_line_prefix):
-                return False, "Wrong second line in credentials file"
-            nas_pwd = pwd_line[len(pwd_line_prefix):-1]
-            if not nas_pwd:
-                return False, "Missing password in credentials file"
+        status, msg, username, pwd = phanas.file_utils.read_credentials_file(self.env.credential_file_path)
+        if not status:
+            return False, msg
+        print("PhanNas username: {}".format(username))
 
         return True, None
 
@@ -140,10 +118,10 @@ class AutoMount:
         if mounted:
             print("already mounted")
             return True, None
+        status, msg = self.__check_mount_dir(sub_dir_path)
         if msg is not None:
             return False, msg
 
-        status, msg = self.__check_mount_dir(sub_dir_path)
         if not status:
             return False, msg
 
@@ -168,17 +146,10 @@ class AutoMount:
             return True, None
         if not sub_dir_path.is_dir():
             return False, "{} is not a directory".format(sub_dir_path)
-        if not self.__is_empty_dir(sub_dir_path):
+        if not phanas.file_utils.is_empty_dir(sub_dir_path):
             return False, "{} is not empty".format(sub_dir_path)
 
         return True, None
-
-    def __is_empty_dir(self, dir_path):
-        try:
-            next(dir_path.iterdir())
-            return False
-        except StopIteration as e:
-            return True
 
     def __is_already_mounted(self, dir_path, expected_device):
         if not os.path.ismount(dir_path):

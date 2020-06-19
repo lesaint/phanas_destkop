@@ -2,11 +2,12 @@
 import getpass
 import os
 import phanas.automount
+import phanas.file_utils
 import phanas.nas
 import shutil
 import socket
-import stat
 import subprocess
+import sys
 import tempfile
 
 from datetime import datetime, date, timedelta
@@ -24,15 +25,18 @@ class KeePass:
     # see https://stackoverflow.com/a/799799
     __hostname = socket.gethostname()
 
+    # from https://stackoverflow.com/a/31867043
+    __script_dir = Path(sys.path[0])
+    __credentials_file_path = Path(__script_dir) / ".kpx_phanas"
     __sys_drive_path = __automount_env.mount_dir_path / "sys"
 
     __KEYFILE_DIR_NAME = "keys"
-    __nas_username = "phan" ## FIXME username must not be hardcoded
-    __remote_keyfile_dir_path = __sys_drive_path / __KEYFILE_DIR_NAME / __nas_username
+    __keyfile_password = None
+    __remote_keyfile_dir_path = None
 
     __KEYFILE_NAME = "sebastienlesaint.kdbx"
-    __remote_keyfile_path = __remote_keyfile_dir_path / __KEYFILE_NAME
-    __local_keyfile_path = Path.home() / __KEYFILE_NAME
+    __remote_keyfile_path = None
+    __local_keyfile_path = None
 
     __keepassxc_cli = None
 
@@ -54,6 +58,15 @@ class KeePass:
             return False, "{} is not a directory".format(self.__sys_drive_path)
         if not os.path.ismount(self.__sys_drive_path):
             return False, "{} is not mounted".format(self.__sys_drive_path)
+
+        status, msg, __keyfile_username, self.__keyfile_password = phanas.file_utils.read_credentials_file(self.__credentials_file_path)
+        if not status:
+            return False, msg
+        print("Keyfile username: {}".format(__keyfile_username))
+
+        self.__remote_keyfile_dir_path = self.__sys_drive_path / self.__KEYFILE_DIR_NAME / __keyfile_username
+        self.__remote_keyfile_path = self.__remote_keyfile_dir_path / self.__KEYFILE_NAME
+        self.__local_keyfile_path = Path.home() / self.__KEYFILE_NAME
 
         # remote keyfile dir exists
         if not self.__remote_keyfile_dir_path.is_dir():
@@ -81,12 +94,11 @@ class KeePass:
                 shutil.copyfile(self.__local_keyfile_path, local_copy.name)
                 shutil.copyfile(self.__remote_keyfile_path, remote_copy.name)
 
-                keyfile_password = self.__ask_for_keyfile_password()
                 # sync remote to local and the other way around
                 print("merging local keyfile into remote...")
-                self.__merge_keyfiles(keyfile_password, remote_copy.name, local_copy.name)
+                self.__merge_keyfiles(remote_copy.name, local_copy.name)
                 print("merging remote keyfile into local...")
-                self.__merge_keyfiles(keyfile_password, local_copy.name, remote_copy.name)
+                self.__merge_keyfiles(local_copy.name, remote_copy.name)
                 
                 # overwrite remote and local with up to date file
                 shutil.copy(remote_copy.name, self.__remote_keyfile_path)
@@ -96,14 +108,11 @@ class KeePass:
 
         return True, None
 
-    def __ask_for_keyfile_password(self):
-        return getpass.getpass(prompt = "Keyfile password?")
-
-    def __merge_keyfiles(self, keyfile_password, into_keyfile, from_keyfile):
+    def __merge_keyfiles(self, into_keyfile, from_keyfile):
         command = [ self.__keepassxc_cli, "merge", "--quiet", "--same-credentials", into_keyfile, from_keyfile ]
 
         proc = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
-        outs, errs = proc.communicate(input = keyfile_password)
+        outs, errs = proc.communicate(input = self.__keyfile_password)
         print("output=" + outs)
         print("errs=" + errs)
 
@@ -131,13 +140,10 @@ class KeePass:
 
         shutil.copyfile(self.__remote_keyfile_path, remote_keyfile_backup_path, follow_symlinks = False)
         shutil.copyfile(self.__local_keyfile_path, local_keyfile_backup_path, follow_symlinks = False)
-        self.__make_readonly(remote_keyfile_backup_path)
-        self.__make_readonly(local_keyfile_backup_path)
+        phanas.file_utils.make_readonly(remote_keyfile_backup_path)
+        phanas.file_utils.make_readonly(local_keyfile_backup_path)
 
         return True, None
-
-    def __make_readonly(self, file_path):
-        os.chmod(file_path, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
     def __expire_old_backups(self, sync_backup_dir_path):
         if not sync_backup_dir_path.is_dir():
