@@ -14,8 +14,8 @@ def main():
         import phanas.keepass as keepass
         keepass.run()
     else:
-        import phanas.automount as automount
-        automount.run_gui() 
+        import phanas.login_gui as login_gui
+        login_gui.run() 
 
 if __name__ == '__main__':
     main()

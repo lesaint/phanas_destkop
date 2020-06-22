@@ -43,10 +43,23 @@ class KeePass:
 
     __KEYFILE_NAME = "sebastienlesaint.kdbx"
     __remote_keyfile_path = None
-    __local_keyfile_path = None
+    __local_keyfile_path = Path.home() / __KEYFILE_NAME
 
+    def should_synch_keyfiles(self):
+        return self.__local_keyfile_path.is_file()
 
-    def check_prerequisites(self):
+    def do_sync(self):
+        status, msg = self._check_prerequisites()
+        if not status:
+            return False, msg
+
+        status, msg = self._synch_files()
+        if not status:
+            return False, msg
+
+        return True, None
+
+    def _check_prerequisites(self):
         # keepassxc-cli is installed
         self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI)
         if self.__keepassxc_cli is None:
@@ -75,7 +88,6 @@ class KeePass:
 
         self.__remote_keyfile_dir_path = self.__sys_drive_path / self.__KEYFILE_DIR_NAME / __keyfile_username
         self.__remote_keyfile_path = self.__remote_keyfile_dir_path / self.__KEYFILE_NAME
-        self.__local_keyfile_path = Path.home() / self.__KEYFILE_NAME
         self.__sync_backup_dir_path = self.__remote_keyfile_dir_path / "{backup_dir}/{host}/{linux_user}".format(
             backup_dir = "_sync_backup", host = self.__hostname, linux_user = self.__linux_username)
 
@@ -93,7 +105,7 @@ class KeePass:
 
         return True, None
 
-    def synch_files(self):
+    def _synch_files(self):
         status, msg = self.__need_sync()
         if not status:
             if msg:
@@ -214,16 +226,11 @@ class KeePass:
         timestamp_str = file_path.stem[0:len("2020-06-18_09-32-45")]
         return datetime.strptime(timestamp_str, self.__BACKUP_TIMESTAMP_FORMAT)
 
-
 def run():
     print("Keepass synchronization started\n")
 
     keepass = KeePass()
-    status, msg = keepass.check_prerequisites()
-    if not status:
-        print("[ERROR] {}".format(msg))
-
-    status, msg = keepass.synch_files()
+    status, msg = keepass.do_sync()
     if not status:
         print("[ERROR] {}".format(msg))
 
