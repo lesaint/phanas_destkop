@@ -11,10 +11,13 @@ PROGRAM_NAME = "PhanNas Desktop"
 
 class MyWindow(Gtk.Window):
     __persistent_msg = []
+    __config = None
 
-    def __init__(self):
+    def __init__(self, config):
         Gtk.Window.__init__(self, title=PROGRAM_NAME,
             default_width=200, resizable=False)
+
+        self.__config = config
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add(self.box)
@@ -58,14 +61,16 @@ class MyWindow(Gtk.Window):
 
         self.add_persistent_msg("All NAS drives connected!")
 
-        keepass = phanas.keepass.KeePass()
+        self.info_label("Synchronizing keyfiles...")
+        keepass = phanas.keepass.KeePass(self.__config)
         if keepass.should_synch_keyfiles():
-            self.info_label("Synchronizing keyfiles...")
             status, msg = keepass.do_sync()
             if not status:
                 self.failure(msg)
                 return
             self.add_persistent_msg("Keyfiles synchronized")
+        else:
+            self.info_label("Keyfile synchronization not configured")
         
         self.info_label("     Closing in 3 seconds...")
         time.sleep(3)
@@ -96,10 +101,10 @@ class MyWindow(Gtk.Window):
         # return false to not be called again
         return False
 
-def run():
+def run(config):
     print("{} started".format(PROGRAM_NAME))
 
-    win = MyWindow()
+    win = MyWindow(config)
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
     Gtk.main()

@@ -1,6 +1,21 @@
 import hashlib
+import json
 import os
 import stat
+import sys
+
+from pathlib import Path
+
+def read_config_file():
+    CONFIG_FILENAME = "config.phanas"
+    config_file_path = Path(sys.path[0]) / CONFIG_FILENAME
+
+    if not config_file_path.is_file():
+        print("Config file {} not found".format(config_file_path))
+        return {}
+
+    with open(config_file_path, 'r') as f:
+        return json.load(f) 
 
 ###Returns tuple (success, msg, username, password)
 def read_credentials_file(credential_file_path):

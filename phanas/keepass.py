@@ -1,4 +1,3 @@
-
 import getpass
 import os
 import phanas.automount
@@ -14,6 +13,8 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 
 class KeePass:
+    __config = None
+
     __KEEPASSXC_CLI = "keepassxc-cli"
     __keepassxc_cli = None
 
@@ -41,12 +42,34 @@ class KeePass:
     __remote_keyfile_dir_path = None
     __sync_backup_dir_path = None
 
-    __KEYFILE_NAME = "sebastienlesaint.kdbx"
+    __keyfile_name = None
     __remote_keyfile_path = None
-    __local_keyfile_path = Path.home() / __KEYFILE_NAME
+    __local_keyfile_path = None
+
+    def __init__(self, config):
+        self.__load_keyfilename(config)
+
+    def __load_keyfilename(self, config):
+        if not config:
+            return False
+
+        if not "keepass" in config:
+            return False
+
+        keepass_config = config["keepass"]
+        if not isinstance(keepass_config, dict) or not "keyfile" in keepass_config:
+            return False
+
+        keyfile_name = keepass_config["keyfile"]
+        if not isinstance(keyfile_name, str) or not keyfile_name:
+            return False
+
+        self.__keyfile_name = keyfile_name
+        self.__local_keyfile_path = Path.home() / self.__keyfile_name
+        print("keyfile name: {}".format(self.__keyfile_name))
 
     def should_synch_keyfiles(self):
-        return self.__local_keyfile_path.is_file()
+        return self.__local_keyfile_path and self.__local_keyfile_path.is_file()
 
     def do_sync(self):
         status, msg = self._check_prerequisites()
@@ -87,7 +110,7 @@ class KeePass:
         print("Keyfile username: {}".format(__keyfile_username))
 
         self.__remote_keyfile_dir_path = self.__sys_drive_path / self.__KEYFILE_DIR_NAME / __keyfile_username
-        self.__remote_keyfile_path = self.__remote_keyfile_dir_path / self.__KEYFILE_NAME
+        self.__remote_keyfile_path = self.__remote_keyfile_dir_path / self.__keyfile_name
         self.__sync_backup_dir_path = self.__remote_keyfile_dir_path / "{backup_dir}/{host}/{linux_user}".format(
             backup_dir = "_sync_backup", host = self.__hostname, linux_user = self.__linux_username)
 
@@ -160,7 +183,7 @@ class KeePass:
         if not self.__sync_backup_dir_path.is_dir():
             return None, None
 
-        glob = "*_{nas_or_local}_{keyfilename}".format(nas_or_local = "local" if local else "nas", keyfilename = self.__KEYFILE_NAME)
+        glob = "*_{nas_or_local}_{keyfilename}".format(nas_or_local = "local" if local else "nas", keyfilename = self.__keyfile_name)
         max_date = None
         latest_backup_path = None
         for file in self.__sync_backup_dir_path.glob(glob):
@@ -193,8 +216,8 @@ class KeePass:
                 return False, "{} is not a directory".format(d)
 
         timestamp = datetime.today().strftime(self.__BACKUP_TIMESTAMP_FORMAT)
-        remote_keyfile_backup_path = self.__sync_backup_dir_path / "{date}_nas_{keyfilename}".format(date = timestamp, keyfilename = self.__KEYFILE_NAME)
-        local_keyfile_backup_path = self.__sync_backup_dir_path / "{date}_local_{keyfilename}".format(date = timestamp, keyfilename = self.__KEYFILE_NAME)
+        remote_keyfile_backup_path = self.__sync_backup_dir_path / "{date}_nas_{keyfilename}".format(date = timestamp, keyfilename = self.__keyfile_name)
+        local_keyfile_backup_path = self.__sync_backup_dir_path / "{date}_local_{keyfilename}".format(date = timestamp, keyfilename = self.__keyfile_name)
         if remote_keyfile_backup_path.exists() or local_keyfile_backup_path.exists():
             return False, "backup file {} or {} already exists".format(remote_keyfile_backup_path, local_keyfile_backup_path)
 
@@ -226,13 +249,17 @@ class KeePass:
         timestamp_str = file_path.stem[0:len("2020-06-18_09-32-45")]
         return datetime.strptime(timestamp_str, self.__BACKUP_TIMESTAMP_FORMAT)
 
-def run():
+def run(config):
     print("Keepass synchronization started\n")
 
-    keepass = KeePass()
-    status, msg = keepass.do_sync()
-    if not status:
-        print("[ERROR] {}".format(msg))
+    keepass = KeePass(config)
+
+    if keepass.should_synch_keyfiles():
+        status, msg = keepass.do_sync()
+        if not status:
+            print("[ERROR] {}".format(msg))
+    else:
+        print("Keyfile synchronization is not configured")
 
     # called after GTK process has ended (ie. window closed and/or Gtk.main_quit is called)
     print("\nKeepass synchronization done")
