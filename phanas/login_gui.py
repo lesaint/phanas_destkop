@@ -50,7 +50,7 @@ class MyWindow(Gtk.Window):
             self.failure(msg)
             return
 
-        self.info_label("Configuring {} desktop...")
+        self.info_label("Configuring desktop...")
         status, msg = self.autoMount.configure_desktop()
         if not status:
             self.failure(msg)
