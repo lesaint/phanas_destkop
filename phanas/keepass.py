@@ -224,6 +224,9 @@ class KeePass:
         if remote_keyfile_backup_path.exists() or local_keyfile_backup_path.exists():
             return False, "backup file {} or {} already exists".format(remote_keyfile_backup_path, local_keyfile_backup_path)
 
+        self.__logger.info("remote keyfile backup is %s", remote_keyfile_backup_path)
+        self.__logger.info("local keyfile backup is %s", local_keyfile_backup_path)
+
         shutil.copyfile(self.__remote_keyfile_path, remote_keyfile_backup_path, follow_symlinks = False)
         shutil.copyfile(self.__local_keyfile_path, local_keyfile_backup_path, follow_symlinks = False)
         phanas.file_utils.make_readonly(remote_keyfile_backup_path)
