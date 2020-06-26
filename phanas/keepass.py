@@ -268,5 +268,4 @@ def run(config):
     else:
         logger.info("Keyfile synchronization is not configured")
 
-    # called after GTK process has ended (ie. window closed and/or Gtk.main_quit is called)
     logger.info("Keepass synchronization done")
