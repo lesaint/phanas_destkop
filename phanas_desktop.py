@@ -2,15 +2,17 @@
 
 import argparse
 import phanas.file_utils
+import phanas.logging
 
 def main():
+    phanas.logging.configure_logging()
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-g", "--generate-sudoers", help="generate sudoers commands for current linux and nas user", action="store_true")
     parser.add_argument("-k", "--keepass-sync", help="run keepass synchronization", action="store_true")
     args = parser.parse_args()
 
     config = phanas.file_utils.read_config_file()
-
     if args.generate_sudoers:
         import phanas.sudoers as sudoers
         print(sudoers.generate())

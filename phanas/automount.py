@@ -1,4 +1,5 @@
 import getpass
+import logging
 import os
 import phanas.nas
 import phanas.file_utils
@@ -25,11 +26,13 @@ class Env:
     credential_file_path = Path(__script_dir) / ".smb_phanas"
 
 class AutoMount:
+    __logger = logging.getLogger("automount")
+
     env = Env()
     nas = phanas.nas.Nas()
 
     def __init__(self):
-        print("Mount dir={}".format(self.env.base_mount_dir_path))
+        self.__logger.info("Mount dir=%s", self.env.base_mount_dir_path)
 
     # def check_system_prerequisites(self):
         # check cifs-utils is installed
@@ -63,7 +66,7 @@ class AutoMount:
         status, msg, username, pwd = phanas.file_utils.read_credentials_file(self.env.credential_file_path)
         if not status:
             return False, msg
-        print("PhanNas username: {}".format(username))
+        self.__logger.info("PhanNas username: %s", username)
 
         return True, None
 
@@ -73,7 +76,7 @@ class AutoMount:
 
         if self.env.credential_file_path.is_file():
             return False, "Both deprecated and new credentials file are present"
-        print("derecated credentials file detected, renaming it...")
+        self.__logger.info("derecated credentials file detected, renaming it...")
         os.rename(self.env.deprecated_credential_file_path, self.env.credential_file_path)
 
         mounted_drives = []
@@ -89,7 +92,7 @@ class AutoMount:
 
     def connect_drives(self):
         if not self.env.mount_dir_path.exists():
-            print("mount dir {} for user does not exist, creating it...".format(self.env.mount_dir_path))
+            self.__logger.info("mount dir %s for user does not exist, creating it...", self.env.mount_dir_path)
             self.env.mount_dir_path.mkdir()
         elif not self.env.mount_dir_path.is_dir():
             return False, "{} should be a directory".format(self.env.mount_dir_path)
@@ -106,11 +109,11 @@ class AutoMount:
 
     def __connect_drive(self, nas_drive, mount_sub_dir):
         device, sub_dir_path = self.__drive_and_dir_for(nas_drive, mount_sub_dir)
-        print("Mounting {} into {}... ".format(device, sub_dir_path))
+        self.__logger.info("Mounting %s into %s... ", device, sub_dir_path)
 
         mounted, msg = self.__is_already_mounted(sub_dir_path, device)
         if mounted:
-            print("already mounted")
+            self.__logger.info("already mounted")
             return True, None
         status, msg = self.__check_mount_dir(sub_dir_path)
         if msg is not None:
@@ -121,7 +124,7 @@ class AutoMount:
 
         status, msg = self.__mount_drive(sub_dir_path, device)
         if status:
-            print("mounted")
+            self.__logger.info("mounted")
         else:
             return False, msg
 
@@ -135,7 +138,7 @@ class AutoMount:
 
     def __check_mount_dir(self, sub_dir_path):
         if not sub_dir_path.exists():
-            print("Mount sub dir {} does not exist. Creating it...".format(sub_dir_path))
+            self.__logger.info("Mount sub dir %s does not exist. Creating it...", sub_dir_path)
             sub_dir_path.mkdir()
             return True, None
         if not sub_dir_path.is_dir():
@@ -200,7 +203,7 @@ class AutoMount:
     def __configure_nas_directory(self):
         user_nas_dir_path = self.env.home_dir_path / MOUNT_DIR_NAME
         if not user_nas_dir_path.exists():
-            print("Creating user NAS directory {}...".format(user_nas_dir_path))
+            self.__logger.info("Creating user NAS directory %s...", user_nas_dir_path)
             user_nas_dir_path.mkdir()
         elif not user_nas_dir_path.is_dir():
             return False, "User NAS directory {} is not a directory".format(user_nas_dir_path)
@@ -230,7 +233,7 @@ class AutoMount:
         symlink_target = self.env.mount_dir_path / drive
 
         if not symlink_path.exists():
-            print("Creating symlink {}".format(symlink_path))
+            self.__logger.info("Creating symlink %s", symlink_path)
             symlink_path.symlink_to(symlink_target, target_is_directory=True)
         elif not symlink_path.is_symlink():
             return False, "{} is not a symlink".format(symlink_path)

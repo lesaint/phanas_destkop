@@ -1,4 +1,5 @@
 import gi
+import logging
 import phanas.automount as automount
 import phanas.keepass
 import threading
@@ -12,12 +13,15 @@ PROGRAM_NAME = "PhanNas Desktop"
 class MyWindow(Gtk.Window):
     __persistent_msg = []
     __config = None
+    __logger = None
 
-    def __init__(self, config):
+    def __init__(self, config, logger):
+
         Gtk.Window.__init__(self, title=PROGRAM_NAME,
             default_width=200, resizable=False)
 
         self.__config = config
+        self.__logger = logger
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add(self.box)
@@ -77,17 +81,17 @@ class MyWindow(Gtk.Window):
         GLib.idle_add(Gtk.main_quit)
 
     def failure(self, msg):
-        print("[ERROR]  " + msg)
+        self.__logger.error(msg)
         self.info_label(msg)
 
     def add_persistent_msg(self, msg):
-        print(msg)
+        self.__logger.info(msg)
         effective_msg = self.__effective_msg_of(msg)
         self.__persistent_msg.append(msg)
         GLib.idle_add(self.set_label_text, effective_msg)
 
     def info_label(self, text):
-        print(text)
+        self.__logger.info(text)
         effective_text = self.__effective_msg_of(text)
         GLib.idle_add(self.set_label_text, effective_text)
 
@@ -102,12 +106,13 @@ class MyWindow(Gtk.Window):
         return False
 
 def run(config):
-    print("{} started".format(PROGRAM_NAME))
+    logger = logging.getLogger("login_gui")
+    logger.info("%s started", PROGRAM_NAME)
 
-    win = MyWindow(config)
+    win = MyWindow(config, logger)
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
     Gtk.main()
 
     # called after GTK process has ended (ie. window closed and/or Gtk.main_quit is called)
-    print("{} stopped".format(PROGRAM_NAME))
+    logger.info("%s stopped", PROGRAM_NAME)

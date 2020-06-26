@@ -1,4 +1,5 @@
 import getpass
+import logging
 import os
 import phanas.automount
 import phanas.file_utils
@@ -13,6 +14,8 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 
 class KeePass:
+    __logger = logging.getLogger("keepass")
+
     __config = None
 
     __KEEPASSXC_CLI = "keepassxc-cli"
@@ -66,7 +69,7 @@ class KeePass:
 
         self.__keyfile_name = keyfile_name
         self.__local_keyfile_path = Path.home() / self.__keyfile_name
-        print("keyfile name: {}".format(self.__keyfile_name))
+        self.__logger.info("keyfile name: %s", self.__keyfile_name)
 
     def should_synch_keyfiles(self):
         return self.__local_keyfile_path and self.__local_keyfile_path.is_file()
@@ -87,7 +90,7 @@ class KeePass:
         self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI)
         if self.__keepassxc_cli is None:
             return False, "{} is not installed".format(self.__KEEPASSXC_CLI)
-        print("keepassxc-cli found: {}".format(self.__keepassxc_cli))
+        self.__logger.info("keepassxc-cli found: %s", self.__keepassxc_cli)
 
         self.__md5sum = shutil.which(self.__MD5SUM)
         if self.__md5sum is None:
@@ -107,7 +110,7 @@ class KeePass:
         status, msg, __keyfile_username, self.__keyfile_password = phanas.file_utils.read_credentials_file(self.__credentials_file_path)
         if not status:
             return False, msg
-        print("Keyfile username: {}".format(__keyfile_username))
+        self.__logger.info("Keyfile username: %s", __keyfile_username)
 
         self.__remote_keyfile_dir_path = self.__sys_drive_path / self.__KEYFILE_DIR_NAME / __keyfile_username
         self.__remote_keyfile_path = self.__remote_keyfile_dir_path / self.__keyfile_name
@@ -133,7 +136,7 @@ class KeePass:
         if not status:
             if msg:
                 return False, msg
-            print("Keyfiles have not changed")
+            self.__logger.info("Keyfiles have not changed")
             return True, None
 
         # backup local and remote keyfiles
@@ -148,16 +151,16 @@ class KeePass:
                 shutil.copyfile(self.__remote_keyfile_path, remote_copy.name)
 
                 # sync remote to local and the other way around
-                print("merging local keyfile into remote...")
+                self.__logger.info("merging local keyfile into remote...")
                 self.__merge_keyfiles(remote_copy.name, local_copy.name)
-                print("merging remote keyfile into local...")
+                self.__logger.info("merging remote keyfile into local...")
                 self.__merge_keyfiles(local_copy.name, remote_copy.name)
                 
                 # overwrite remote and local with up to date file
                 shutil.copy(remote_copy.name, self.__remote_keyfile_path)
-                print("{} synchronized".format(self.__remote_keyfile_path))
+                self.__logger.info("%s synchronized", self.__remote_keyfile_path)
                 shutil.copy(local_copy.name, self.__local_keyfile_path)
-                print("{} synchronized".format(self.__local_keyfile_path))
+                self.__logger.info("%s synchronized", self.__local_keyfile_path)
 
         return True, None
 
@@ -199,8 +202,8 @@ class KeePass:
 
         proc = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
         outs, errs = proc.communicate(input = self.__keyfile_password)
-        print("output=" + outs)
-        print("errs=" + errs)
+        self.__logger.info("*********** output ***********\n%s", outs)
+        self.__logger.info("***********  errs  ***********\n%s", errs)
 
     def __backup_keyfiles(self):
         status, msg = self.__expire_old_backups()
@@ -210,7 +213,7 @@ class KeePass:
         # sync backup directory exists or we create it
         for d in [self.__sync_backup_dir_path.parents[1], self.__sync_backup_dir_path.parents[0], self.__sync_backup_dir_path]:
             if not d.exists():
-                print("{} does not exists, creating it...".format(d))
+                self.__logger.info("%s does not exists, creating it...", d)
                 d.mkdir()
             elif not d.is_dir():
                 return False, "{} is not a directory".format(d)
@@ -236,7 +239,7 @@ class KeePass:
             day = self.__read_day_from_backup_file(file)
             threshold_day = datetime.today() - timedelta(days = self.__BACKUP_EXPIRATION_IN_DAYS)
             if day < threshold_day:
-                print("deleting old backup {}...".format(file))
+                self.__logger.info("deleting old backup %s...", file)
                 file.unlink()
 
         return True, None
@@ -250,16 +253,17 @@ class KeePass:
         return datetime.strptime(timestamp_str, self.__BACKUP_TIMESTAMP_FORMAT)
 
 def run(config):
-    print("Keepass synchronization started\n")
+    logger = logging.getLogger("keepass")
+    logger.info("Keepass synchronization started")
 
     keepass = KeePass(config)
 
     if keepass.should_synch_keyfiles():
         status, msg = keepass.do_sync()
         if not status:
-            print("[ERROR] {}".format(msg))
+            logger.error(msg)
     else:
-        print("Keyfile synchronization is not configured")
+        logger.info("Keyfile synchronization is not configured")
 
     # called after GTK process has ended (ie. window closed and/or Gtk.main_quit is called)
-    print("\nKeepass synchronization done")
+    logger.info("Keepass synchronization done")

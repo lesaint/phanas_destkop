@@ -1,17 +1,20 @@
 import hashlib
 import json
+import logging
 import os
 import stat
 import sys
 
 from pathlib import Path
 
+__logger = logging.getLogger("file_utils")
+
 def read_config_file():
     CONFIG_FILENAME = "config.phanas"
     config_file_path = Path(sys.path[0]) / CONFIG_FILENAME
 
     if not config_file_path.is_file():
-        print("Config file {} not found".format(config_file_path))
+        __logger.info("Config file %s not found", config_file_path)
         return {}
 
     with open(config_file_path, 'r') as f:
