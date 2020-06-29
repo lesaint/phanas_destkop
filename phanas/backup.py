@@ -59,7 +59,7 @@ class Backup:
     def do_backup(self):
         command = [ self.__script_path ]
 
-        proc = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
+        proc = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, universal_newlines = True)
 
         def check_std(std, loglevel):
            while True:
@@ -71,14 +71,13 @@ class Backup:
 
         def check_io():
             check_std(proc.stdout, logging.INFO)
-            check_std(proc.stderr, logging.ERROR)
 
         while proc.poll() is None:
             check_io()
             proc.wait()
 
         if proc.returncode != 0:
-            return False, "backup script had an error. Check the logs".format(proc.stderr)
+            return False, "backup script had an error. Check the logs"
 
         return True, None
 
