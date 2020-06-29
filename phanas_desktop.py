@@ -10,6 +10,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-g", "--generate-sudoers", help="generate sudoers commands for current linux and nas user", action="store_true")
     parser.add_argument("-k", "--keepass-sync", help="run keepass synchronization", action="store_true")
+    parser.add_argument("-b", "--backup", help="call backup script", action="store_true")
     args = parser.parse_args()
 
     config = phanas.file_utils.read_config_file()
@@ -19,6 +20,9 @@ def main():
     elif args.keepass_sync:
         import phanas.keepass as keepass
         keepass.run(config)
+    elif args.backup:
+        import phanas.backup as backup
+        backup.run(config)
     else:
         import phanas.login_gui as login_gui
         login_gui.run(config) 
