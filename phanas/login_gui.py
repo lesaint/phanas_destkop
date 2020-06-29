@@ -1,6 +1,7 @@
 import gi
 import logging
 import phanas.automount as automount
+import phanas.backup
 import phanas.keepass
 import threading
 import time
@@ -75,6 +76,17 @@ class MyWindow(Gtk.Window):
             self.add_persistent_msg("Keyfiles synchronized")
         else:
             self.info_label("Keyfile synchronization not configured")
+
+        self.info_label("Creating backup...")
+        backup = phanas.backup.Backup(self.__config)
+        if backup.should_backup():
+            status, msg = backup.do_backup()
+            if not status:
+                self.failure(msg)
+                return
+            self.add_persistent_msg("Backup done")
+        else:
+            self.info_label("Backup not configured")
         
         self.info_label("     Closing in 3 seconds...")
         time.sleep(3)
