@@ -77,14 +77,17 @@ class MyWindow(Gtk.Window):
         else:
             self.info_label("Keyfile synchronization not configured")
 
-        self.info_label("Creating backup...")
+        self.info_label("Creating backup... can take a while!")
         backup = phanas.backup.Backup(self.__config)
         if backup.should_backup():
-            status, msg = backup.do_backup()
-            if not status:
-                self.failure(msg)
-                return
-            self.add_persistent_msg("Backup done")
+            if backup.can_skip():
+                self.add_persistent_msg("Backup done (skipped, recent enough)")
+            else:
+                status, msg = backup.do_backup()
+                if not status:
+                    self.failure(msg)
+                    return
+                self.add_persistent_msg("Backup done")
         else:
             self.info_label("Backup not configured")
         

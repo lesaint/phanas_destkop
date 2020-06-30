@@ -2,5 +2,6 @@
 .smb_phanas
 .kpx_phanas
 config.phanas
+state.phanas
 logs
 __pycache__
