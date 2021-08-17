@@ -17,7 +17,7 @@ The project is public only because it contains no sensitive information and make
 * host `nas` is defined on the machine
 * directory `/__NAS__` must exist
 	* `sudo mkdir /__NAS__ && sudo chmod o+x /__NAS__`
-* an authentication file `{clone_directory}/.phanas` exists, *with 600 permission* and the following content:
+* an authentication file `{clone_directory}/.smb_phanas` exists, *with 600 permission* and the following content:
     ```
     username=XXXX
     password=YYYY
