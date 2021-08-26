@@ -14,6 +14,8 @@ The project is public only because it contains no sensitive information and make
    ```
    sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0
    ```
+* KeePassXC
+	* snap package is most up to date: `snap install keepassxc`
 * host `nas` is defined on the machine
 * directory `/__NAS__` must exist
 	* `sudo mkdir /__NAS__ && sudo chmod o+x /__NAS__`
