@@ -26,6 +26,7 @@ The project is public only because it contains no sensitive information and make
     ```
 * sudoers is configured to allow `mount` and `umount` of the drives without authentication
 	* use `phanas_desktop.py --generate-sudoers` to produce the required sudoers configuration for the current Linux user
+	* `sudo EDITOR=/usr/bin/vim visudo /etc/sudoers` and append at the end
 
 ## how to use
 
