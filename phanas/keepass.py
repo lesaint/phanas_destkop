@@ -39,6 +39,7 @@ class KeePass:
     # from https://stackoverflow.com/a/31867043
     __script_dir = Path(sys.path[0])
     __credentials_file_path = __script_dir / ".kpx_phanas"
+    __temp_dir_path = __script_dir / ".tmp"
     __sys_drive_path = __automount_env.mount_dir_path / __nas.drive_sys
 
     __KEYFILE_DIR_NAME = "keys"
@@ -147,9 +148,17 @@ class KeePass:
         if not status:
             return False, msg
 
+        if not self.__temp_dir_path.exists():
+            self.__logger.info("%s does not exists, creating it...", self.__temp_dir_path)
+            self.__temp_dir_path.mkdir()
+        elif not self.__temp_dir_path.is_dir():
+            return False, "{} is not a directory".format(self.__temp_dir_path)
+
         # create local temp copies of remote file and local file
-        with tempfile.NamedTemporaryFile() as local_copy:
-            with tempfile.NamedTemporaryFile() as remote_copy:
+        with tempfile.NamedTemporaryFile(dir = self.__temp_dir_path) as local_copy:
+            with tempfile.NamedTemporaryFile(dir = self.__temp_dir_path) as remote_copy:
+                self.__logger.info("temp files: local=%s, remote=%s", local_copy.name, remote_copy.name)
+
                 shutil.copyfile(self.__local_keyfile_path, local_copy.name)
                 shutil.copyfile(self.__remote_keyfile_path, remote_copy.name)
 
