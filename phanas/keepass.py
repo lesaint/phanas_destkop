@@ -19,6 +19,7 @@ class KeePass:
     __config = None
 
     __KEEPASSXC_CLI = "keepassxc-cli"
+    __KEEPASSXC_CLI_SNAP = "keepassxc.cli"
     __keepassxc_cli = None
 
     __MD5SUM = "md5sum"
@@ -87,9 +88,11 @@ class KeePass:
 
     def _check_prerequisites(self):
         # keepassxc-cli is installed
-        self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI)
+        self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI_SNAP)
         if self.__keepassxc_cli is None:
-            return False, "{} is not installed".format(self.__KEEPASSXC_CLI)
+            self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI)
+        if self.__keepassxc_cli is None:
+            return False, "Neither {} nor {} is installed".format(self.__KEEPASSXC_CLI, self.__KEEPASSXC_CLI_SNAP)
         self.__logger.info("keepassxc-cli found: %s", self.__keepassxc_cli)
 
         self.__md5sum = shutil.which(self.__MD5SUM)
