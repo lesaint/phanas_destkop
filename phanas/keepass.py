@@ -39,12 +39,14 @@ class KeePass:
     # from https://stackoverflow.com/a/31867043
     __script_dir = Path(sys.path[0])
     __credentials_file_path = __script_dir / ".kpx_phanas"
-    __temp_dir_path = __script_dir / ".tmp"
     __sys_drive_path = __automount_env.mount_dir_path / __nas.drive_sys
+
+    __temp_dir_path = __script_dir / ".tmp"
 
     __KEYFILE_DIR_NAME = "keys"
     __keyfile_password = None
     __remote_keyfile_dir_path = None
+
     __sync_backup_dir_path = None
 
     __keyfile_name = None
@@ -164,15 +166,21 @@ class KeePass:
 
                 # sync remote to local and the other way around
                 self.__logger.info("merging local keyfile into remote...")
-                self.__merge_keyfiles(remote_copy.name, local_copy.name)
+                if not self.__merge_keyfiles(remote_copy.name, local_copy.name):
+                    # TODO remove backups to avoid preventing new attempt to synchronize
+                    return False, "{} failed to merge local keyfile"
                 self.__logger.info("merging remote keyfile into local...")
-                self.__merge_keyfiles(local_copy.name, remote_copy.name)
+                if not self.__merge_keyfiles(local_copy.name, remote_copy.name):
+                    # TODO remove backups to avoid preventing new attempt to synchronize
+                    return False, "{} failed to merge remote keyfile"
                 
                 # overwrite remote and local with up to date file
                 shutil.copy(remote_copy.name, self.__remote_keyfile_path)
                 self.__logger.info("%s synchronized", self.__remote_keyfile_path)
                 shutil.copy(local_copy.name, self.__local_keyfile_path)
                 self.__logger.info("%s synchronized", self.__local_keyfile_path)
+
+                # TODO remove merge marker file (requires function to get the marker file path, tricky...)
 
         return True, None
 
@@ -186,6 +194,8 @@ class KeePass:
         if not local_timestamp == remote_timestamp:
             return False, "Latest backup of remote ({}) doesn't have the same timestamp as latest backup of local ({})".format(
                 latest_remote_backup_path.name, latest_local_backup_path.name)
+
+        # TODO if merge marker file exists, return true
 
         local_keyfile_unchanged = phanas.file_utils.has_same_content(latest_local_backup_path, self.__local_keyfile_path)
         remote_keyfile_unchanged = phanas.file_utils.has_same_content(latest_remote_backup_path, self.__remote_keyfile_path)
@@ -216,6 +226,8 @@ class KeePass:
         outs, errs = proc.communicate(input = self.__keyfile_password)
         self.__logger.info("*********** output ***********\n%s", outs)
         self.__logger.info("***********  errs  ***********\n%s", errs)
+
+        return proc.returncode == 0
 
     def __backup_keyfiles(self):
         status, msg = self.__expire_old_backups()
