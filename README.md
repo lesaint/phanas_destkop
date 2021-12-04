@@ -18,7 +18,7 @@ The project is public only because it contains no sensitive information and make
 	* snap package is most up to date: `snap install keepassxc`
 * host `nas` is defined on the machine
 * directory `/__NAS__` must exist
-	* `sudo mkdir /__NAS__ && sudo chmod o+x /__NAS__`
+	* `sudo mkdir /mnt/__NAS__ && sudo chmod o+wx /mnt/__NAS__`
 * an authentication file `{clone_directory}/.smb_phanas` exists, *with 600 permission* and the following content:
     ```
     username=XXXX
@@ -41,7 +41,7 @@ It will:
 
 1. spawn a minimal GTK+ window showing progress status and errors if any
 2. check NAS is online
-3. mount NAS drives to directories `/__NAS__/{username}/{drive_name}`
+3. mount NAS drives to directories `/mnt/__NAS__/{username}/{drive_name}`
 	* mounting outside `$HOME` is required to avoid Nautilus loading the mounts and slowing down Gnome's login
 4. create directory `$HOME/__NAS__` and create symlinks to each mounted drive
 5. TODO: add directory `$HOME/__NAS__` to Nautilus's bookmarks

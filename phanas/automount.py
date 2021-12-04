@@ -18,7 +18,7 @@ class Env:
     # base_mount_dir_path must not be location in /home or /media to not have drive loaded by Nautilus
     # and slow down Gnome's login
     # logical links in /home to mounted drive outside /home are not loaded by Nautilus
-    base_mount_dir_path = Path("/" + MOUNT_DIR_NAME)
+    base_mount_dir_path = Path("/mnt/" + MOUNT_DIR_NAME)
     mount_dir_path = base_mount_dir_path / linux_username
     # from https://stackoverflow.com/a/31867043
     __script_dir = Path(sys.path[0])
