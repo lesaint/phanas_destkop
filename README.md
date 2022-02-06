@@ -8,8 +8,7 @@ The project is public only because it contains no sensitive information and make
 ## requirements
 
 * package `cifs-utils` installed
-	* use `apt-cache policy cifs-utils` to verify it's installed
-	* otherwise `sudo apt-get install cifs-utils`
+	* `sudo apt-get install cifs-utils`
 * python 3 installed with `gi`, `PyGObject` and `GTK 3.0`
    ```
    sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0
