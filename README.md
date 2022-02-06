@@ -44,6 +44,8 @@ It will:
 	* mounting outside `$HOME` is required to avoid Nautilus loading the mounts and slowing down Gnome's login
 4. create directory `$HOME/__NAS__` and create symlinks to each mounted drive
 5. TODO: add directory `$HOME/__NAS__` to Nautilus's bookmarks
+7. synchronize keyfiles if configured
+8. execute a [rsync-time-backup](https://github.com/lesaint/rsync-time-backup) (RTB) based backup script
 6. automatically close the windows 3 seconds after successful completion
 
 
