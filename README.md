@@ -48,6 +48,14 @@ It will:
 8. execute a [rsync-time-backup](https://github.com/lesaint/rsync-time-backup) (RTB) based backup script
 6. automatically close the windows 3 seconds after successful completion
 
+## how to configure
+
+Create a file `{clone_directory}/config.phanas`, which contains a JSON object to configure PhanNAS.
+
+Entries:
+
+* `keepass.keyfile`: name of the keypass file to synchronize (location on NAS is hardcoded, local location is hardcoded to `~`)
+* `backup.script_path`: path to the RTB based backup script to execute
 
 # License
 
