@@ -3,6 +3,7 @@ import logging
 import phanas.automount as automount
 import phanas.backup
 import phanas.keepass
+import phanas.nascopy
 import threading
 import time
 
@@ -76,6 +77,18 @@ class MyWindow(Gtk.Window):
             self.add_persistent_msg("Keyfiles synchronized")
         else:
             self.info_label("Keyfile synchronization not configured")
+
+        self.info_label("Synchronizing NAS copy... should be quick...")
+        nascopy = phanas.nascopy.NasCopy(self.__config)
+        if nascopy.should_nascopy():
+            status, msg = nascopy.do_nascopy()
+            if not status:
+                self.failure(msg)
+                return
+            self.add_persistent_msg("NAS copy done")
+        else:
+            self.info_label("NAS copy not configured")
+
 
         self.info_label("Creating backup... can take a while!")
         backup = phanas.backup.Backup(self.__config)

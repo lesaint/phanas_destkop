@@ -42,10 +42,12 @@ It will:
 2. check NAS is online
 3. mount NAS drives to directories `/mnt/__NAS__/{username}/{drive_name}`
 	* mounting outside `$HOME` is required to avoid Nautilus loading the mounts and slowing down Gnome's login
+	* mounting under `/mnt` is required to allow SNAP based applications (such as VLC) to access NAS drives
 4. create directory `$HOME/__NAS__` and create symlinks to each mounted drive
 5. TODO: add directory `$HOME/__NAS__` to Nautilus's bookmarks
-7. synchronize keyfiles if configured
-8. execute a [rsync-time-backup](https://github.com/lesaint/rsync-time-backup) (RTB) based backup script
+7. synchronize keyfiles (if configured)
+8. execute a [rsync-time-backup](https://github.com/lesaint/rsync-time-backup) (RTB) based backup script (if configured)
+8. execute a [NAS Copy](https://github.com/lesaint/nascopy) based script (if configured)
 6. automatically close the windows 3 seconds after successful completion
 
 ## how to configure
@@ -56,6 +58,7 @@ Entries:
 
 * `keepass.keyfile`: name of the keypass file to synchronize (location on NAS is hardcoded, local location is hardcoded to `~`)
 * `backup.script_path`: path to the RTB based backup script to execute
+* `nascopy.script_path`: path to the NAS copy script to execute
 
 # License
 
