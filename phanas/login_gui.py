@@ -4,9 +4,7 @@ import threading
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
-from phanas.phanas_desktop import Output, PhanasDesktop
-
-PROGRAM_NAME = "PhanNas Desktop"
+from phanas.phanas_desktop import Output, PhanasDesktop, PROGRAM_NAME
 
 class MyWindow(Gtk.Window, Output):
     __persistent_msg = []

@@ -12,6 +12,7 @@ def main():
     parser.add_argument("-k", "--keepass-sync", help="run keepass synchronization", action="store_true")
     parser.add_argument("-b", "--backup", help="call backup script", action="store_true")
     parser.add_argument("-n", "--nascopy", help="call NAS copy script", action="store_true")
+    parser.add_argument("-c", "--console", help="use console output instead of GUI", action="store_true")
     args = parser.parse_args()
 
     config = phanas.file_utils.read_config_file()
@@ -27,6 +28,15 @@ def main():
     elif args.nascopy:
         import phanas.nascopy as nascopy
         nascopy.run(config)
+    elif args.console:
+        from phanas.phanas_desktop import PhanasDesktop, Output, PROGRAM_NAME
+        import logging
+
+        logger = logging.getLogger("login_gui")
+        logger.info("%s started", PROGRAM_NAME)
+
+        phanasDesktop = PhanasDesktop(config, logger)
+        phanasDesktop.do_things(Output())
     else:
         import phanas.login_gui as login_gui
         login_gui.run(config) 
