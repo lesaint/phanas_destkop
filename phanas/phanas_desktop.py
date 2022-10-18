@@ -35,6 +35,10 @@ class PhanasDesktop:
         self.autoMount = automount.AutoMount()
 
     def _do_automount(self, output):
+        if not self.autoMount.check_linux():
+            self._add_persistent_msg(output, "Connecting NAS drives: no action, only supported on Linux")
+            return True
+
         self._info_label(output, "Checking NAS is online...")
         status, msg = self.autoMount.check_online()
         if not status:

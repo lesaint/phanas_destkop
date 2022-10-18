@@ -34,6 +34,9 @@ class AutoMount:
     def __init__(self):
         self.__logger.info("Mount dir=%s", self.env.base_mount_dir_path)
 
+    def check_linux(self):
+        return sys.platform.startswith('linux')
+
     # def check_system_prerequisites(self):
         # check cifs-utils is installed
         # from https://askubuntu.com/a/336739
