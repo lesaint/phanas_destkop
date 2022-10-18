@@ -34,56 +34,63 @@ class PhanasDesktop:
 
         self.autoMount = automount.AutoMount()
 
-    def do_things(self, output):
+    def _do_automount(self, output):
         self._info_label(output, "Checking NAS is online...")
         status, msg = self.autoMount.check_online()
         if not status:
             self._failure(msg)
-            return
+            return False
         
         self._info_label(output, "Checking file prerequisites...")
         status, msg = self.autoMount.check_file_prerequisites()
         if not status:
             self._failure(output, msg)
-            return
+            return False
 
         self._info_label(output, "Connecting NAS drives...")
         status, msg = self.autoMount.connect_drives()
         if not status:
             self._failure(output, msg)
-            return
+            return False
 
         self._info_label(output, "Configuring desktop...")
         status, msg = self.autoMount.configure_desktop()
         if not status:
             self._failure(output, msg)
-            return
+            return False
 
         self._add_persistent_msg(output, "All NAS drives connected!")
+        return True
 
+    def _do_keyfile_synchronization(self, output):
         self._info_label(output, "Synchronizing keyfiles...")
         keepass = phanas.keepass.KeePass(self.__config)
         if keepass.should_synch_keyfiles():
             status, msg = keepass.do_sync()
             if not status:
                 self._failure(output, msg)
-                return
+                return False
             self._add_persistent_msg(output, "Keyfiles synchronized")
         else:
             self._info_label(output, "Keyfile synchronization not configured")
 
+        return True
+
+    def _do_nascopy(self, output):
         self._info_label(output, "Synchronizing NAS copy... should be quick...")
         nascopy = phanas.nascopy.NasCopy(self.__config)
         if nascopy.should_nascopy():
             status, msg = nascopy.do_nascopy()
             if not status:
                 self._failure(output, msg)
-                return
+                return False
             self._add_persistent_msg(output, "NAS copy done")
         else:
             self._info_label(output, "NAS copy not configured")
 
+        return True
 
+    def _do_backup(self, output):
         self._info_label(output, "Creating backup... can take a while!")
         backup = phanas.backup.Backup(self.__config)
         if backup.should_backup():
@@ -97,6 +104,20 @@ class PhanasDesktop:
                 self._add_persistent_msg(output, "Backup done")
         else:
             self._info_label(output, "Backup not configured")
+
+
+    def _do_things(self, output):
+        if not self._do_automount(output):
+            return
+        if not self._do_keyfile_synchronization(output):
+            return
+        if not self._do_nascopy(output):
+            return
+        self._do_backup(output)
+        
+
+    def do_things(self, output):
+        self._do_things(output)
         
         self._info_label(output, "     Closing in 3 seconds...")
         time.sleep(3)
