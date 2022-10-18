@@ -7,17 +7,23 @@ The project is public only because it contains no sensitive information and make
 
 ## requirements
 
-* package `cifs-utils` installed
-	* `sudo apt-get install cifs-utils`
+### to run with a GUI
+
+The following are required by default, unless option --no-gui is provided:
+* host `nas` is defined on the machine
 * python 3 installed with `gi`, `PyGObject` and `GTK 3.0`
    ```
    sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0
    ```
-* KeePassXC
-	* snap package is most up to date: `snap install keepassxc`
-* host `nas` is defined on the machine
-* directory `/__NAS__` must exist
-	* `sudo mkdir /mnt/__NAS__ && sudo chmod o+wx /mnt/__NAS__`
+### on Linux
+
+The following are required to mount NAS drives on Linux
+
+* package `cifs-utils` installed
+	* `sudo apt-get install cifs-utils`
+
+  * directory `/__NAS__` must exist
+    `sudo mkdir /mnt/__NAS__ && sudo chmod o+wx /mnt/__NAS__`
 * an authentication file `{clone_directory}/.smb_phanas` exists, *with 600 permission* and the following content:
     ```
     username=XXXX
@@ -25,9 +31,15 @@ The project is public only because it contains no sensitive information and make
     ```
 * sudoers is configured to allow `mount` and `umount` of the drives without authentication
 	* use `phanas_desktop.py --generate-sudoers` to produce the required sudoers configuration for the current Linux user
-	* `sudo EDITOR=/usr/bin/vim visudo /etc/sudoers` and append at the end
 
-## how to use
+### to synchronize keyfiles
+
+The following are required to synchronize remote keyfiles stored on NAS with a local copy:
+* host `nas` is defined on the machine
+* KeePassXC
+  * snap package is most up to date: `snap install keepassxc`
+
+## how to use on Linux
 
 Add `phanas_desktop.py` to Gnome's startup programs:
 * `ALT+F2`, input `gnome-session-properties`
