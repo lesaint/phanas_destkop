@@ -32,7 +32,7 @@ def main():
         from phanas.phanas_desktop import PhanasDesktop, Output, PROGRAM_NAME
         import logging
 
-        logger = logging.getLogger("login_gui")
+        logger = logging.getLogger("*********")
         logger.info("%s started", PROGRAM_NAME)
 
         phanasDesktop = PhanasDesktop(config, logger)
