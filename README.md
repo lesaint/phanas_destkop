@@ -60,6 +60,22 @@ Entries:
 * `backup.script_path`: path to the RTB based backup script to execute
 * `nascopy.script_path`: path to the NAS copy script to execute
 
+Sample
+
+```json
+{
+  "keepass": {
+    "keyfile": "foo.kdbx"
+  },
+  "backup": {
+    "script_path": "/home/donut/scripts/backup_donut.sh"
+  },
+  "nascopy": {
+    "script_path": "/home/donut/scripts/nascopy/nascopy_donut.sh"
+  }
+}
+```
+
 # License
 
 Apache 2
