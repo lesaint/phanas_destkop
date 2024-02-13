@@ -6,10 +6,12 @@ import phanas.nas
 def generate():
     env = phanas.automount.Env()
     nas = phanas.nas.Nas()
+    nas2 = phanas.nas.Nas2()
     mnt_alias = "{}_MOUNT_NAS".format(env.linux_username.upper())
-    mnt_aliases = list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(nas.host, x, env.mount_dir_path, x), nas.drives))
+    mnt_aliases = list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(nas.host(), x, env.mount_dir_path, x), nas.drives()))
+    mnt_aliases = mnt_aliases + list(map(lambda x: "/bin/mount --types cifs //{}/{} {}/{} *".format(nas2.host(), x, env.mount_dir_path, x), nas2.drives()))
     umnt_alias = "{}_UMOUNT_NAS".format(env.linux_username.upper())
-    umnt_aliases = list(map(lambda x: "/bin/umount {}/{}".format(env.mount_dir_path, x), nas.drives))
+    umnt_aliases = list(map(lambda x: "/bin/umount {}/{}".format(env.mount_dir_path, x), nas.drives() + nas2.drives()))
 
     txt = """
 Cmnd_Alias {} = \\

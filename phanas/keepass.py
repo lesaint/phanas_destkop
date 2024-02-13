@@ -39,7 +39,7 @@ class KeePass:
     # from https://stackoverflow.com/a/31867043
     __script_dir = Path(sys.path[0])
     __credentials_file_path = __script_dir / ".kpx_phanas"
-    __sys_drive_path = __automount_env.mount_dir_path / __nas.drive_sys
+    __sys_drive_path = __automount_env.mount_dir_path / __nas.drive_sys()
 
     __temp_dir_path = __script_dir / ".tmp"
 

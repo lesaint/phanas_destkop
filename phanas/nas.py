@@ -5,20 +5,30 @@ import subprocess
 from subprocess import DEVNULL
 
 class Nas:
-    host = "nas"
-    drive_sys = "sys"
-    drives = [
-        "backup", "bds", "emilie", "enfants", "films", "jeux",
-        "musique", "phan", "photos", "programs", "series", drive_sys, "videos", "vrac", "lesaint"
-        # deprecated?
-        #, "dev"
-    ]
+    def __init__(self):
+        self._host = "nas"
+        self._drive_sys = "sys"
+        self._drives = [
+            "backup", "bds", "emilie", "enfants", "films", "jeux",
+            "musique", "phan", "photos", "programs", "series", self._drive_sys, "videos", "lesaint"
+            # deprecated?
+            #, "dev"
+        ]
+
+    def host(self):
+        return self._host
+
+    def drive_sys(self):
+        return self._drive_sys
+
+    def drives(self):
+        return self._drives
 
     def check_online(self):
-        if self.__ping(self.host):
+        if self.__ping(self._host):
             return True, None
         else:
-            return False, "{} is not online".format(self.host)
+            return False, "{} is not online".format(self._host)
 
 	# from https://stackoverflow.com/a/32684938
     def __ping(self, host):
@@ -31,7 +41,15 @@ class Nas:
         param = "-n" if platform.system().lower()=="windows" else "-c"
 
         # Building the command. Ex: "ping -c 1 google.com"
-        command = ["ping", param, "1", host]
+        command = ["ping", param, "1", self._host]
 
         # call local ping command, suppress stdout and stderr output as we only care about exit code
         return subprocess.call(command, stdout=DEVNULL, stderr=DEVNULL) == 0
+
+class Nas2(Nas):
+    def __init__(self):
+        self._host = "192.168.1.5"
+        self._drives = [ "vrac" ]
+
+    def drive_sys(self):
+        raise NotImpementedError

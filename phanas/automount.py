@@ -30,6 +30,7 @@ class AutoMount:
 
     env = Env()
     nas = phanas.nas.Nas()
+    nas2 = phanas.nas.Nas2()
 
     def __init__(self):
         self.__logger.info("Mount dir=%s", self.env.base_mount_dir_path)
@@ -44,6 +45,9 @@ class AutoMount:
 
     def check_online(self):
         status, msg = self.nas.check_online()
+        if not status:
+            return False, msg
+        status, msg = self.nas2.check_online()
         if not status:
             return False, msg
 
@@ -83,8 +87,12 @@ class AutoMount:
         os.rename(self.env.deprecated_credential_file_path, self.env.credential_file_path)
 
         mounted_drives = []
-        for drive in self.nas.drives:
-            device, sub_dir_path = self.__drive_and_dir_for(drive, drive)
+        for drive in self.nas.drives():
+            device, sub_dir_path = self.__drive_and_dir_for(self.nas, drive, drive)
+            if sub_dir_path.is_dir() and os.path.ismount(sub_dir_path):
+                mounted_drives.append(drive)
+        for drive in self.nas2.drives():
+            device, sub_dir_path = self.__drive_and_dir_for(self.nas2, drive, drive)
             if sub_dir_path.is_dir() and os.path.ismount(sub_dir_path):
                 mounted_drives.append(drive)
 
@@ -92,6 +100,14 @@ class AutoMount:
             return False, "The following drives must be remounted: {}".format(", ".join(mounted_drives))
 
         return True, None
+
+    def __connect_drives(self, nas, global_status, global_msg):
+        for drive in nas.drives():
+            status, msg = self.__connect_drive(nas, drive, drive)
+            if not status:
+                global_status = False
+                global_msg.append(msg)
+
 
     def connect_drives(self):
         if not self.env.mount_dir_path.exists():
@@ -102,16 +118,13 @@ class AutoMount:
 
         global_status = True
         global_msg = []
-        for drive in self.nas.drives:
-            status, msg = self.__connect_drive(drive, drive)
-            if not status:
-                global_status = False
-                global_msg.append(msg)
+        self.__connect_drives(self.nas, global_status, global_msg)
+        self.__connect_drives(self.nas2, global_status, global_msg)
 
         return global_status, "\n".join(global_msg)
 
-    def __connect_drive(self, nas_drive, mount_sub_dir):
-        device, sub_dir_path = self.__drive_and_dir_for(nas_drive, mount_sub_dir)
+    def __connect_drive(self, nas, nas_drive, mount_sub_dir):
+        device, sub_dir_path = self.__drive_and_dir_for(nas, nas_drive, mount_sub_dir)
         self.__logger.info("Mounting %s into %s... ", device, sub_dir_path)
 
         mounted, msg = self.__is_already_mounted(sub_dir_path, device)
@@ -133,8 +146,8 @@ class AutoMount:
 
         return True, None
 
-    def __drive_and_dir_for(self, nas_drive, mount_sub_dir):
-        device = "//{}/{}".format(self.nas.host, nas_drive)
+    def __drive_and_dir_for(self, nas, nas_drive, mount_sub_dir):
+        device = "//{}/{}".format(nas.host(), nas_drive)
         sub_dir_path = self.env.mount_dir_path / mount_sub_dir
 
         return device, sub_dir_path
@@ -216,11 +229,12 @@ class AutoMount:
             return False, msg
 
         return True, None
+
         
     def ___create_symlinks(self, user_nas_dir_path):
         global_status = True
         global_msg = []
-        for drive in self.nas.drives:
+        for drive in self.nas.drives() + self.nas2.drives():
             status, msg = self.__create_symlink(user_nas_dir_path, drive)
             if not status:
                 global_status = False
