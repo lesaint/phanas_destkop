@@ -30,7 +30,9 @@ The following are required to mount NAS drives on Linux
     password=YYYY
     ```
 * sudoers is configured to allow `mount` and `umount` of the drives without authentication
-	* use `phanas_desktop.py --generate-sudoers` to produce the required sudoers configuration for the current Linux user
+	* use script to configure sudo: `configure_sudoers.sh`
+	* the script uses `phanas_desktop.py --generate-sudoers` under the hood to produce the required sudoers configuration for the current Linux user
+	* if sudoers was previously configure manually, manually remove the configuration with: `sudo EDITOR=vim visudo`
 
 ### to synchronize keyfiles
 
