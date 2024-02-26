@@ -9,10 +9,8 @@ class Nas:
         self._host = "nas"
         self._drive_sys = "sys"
         self._drives = [
-            "backup", "bds", "emilie", "enfants", "films", "jeux",
-            "musique", "phan", "photos", "programs", "series", self._drive_sys, "videos", "lesaint"
-            # deprecated?
-            #, "dev"
+            "backup", "emilie", "enfants",
+            "musique", "phan", "photos", "programs", self._drive_sys, "videos", "lesaint"
         ]
 
     def host(self):
@@ -49,7 +47,7 @@ class Nas:
 class Nas2(Nas):
     def __init__(self):
         self._host = "192.168.1.5"
-        self._drives = [ "vrac" ]
+        self._drives = [ "bds", "films", "jeux", "series", "vrac"]
 
     def drive_sys(self):
         raise NotImpementedError
