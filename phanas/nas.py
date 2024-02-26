@@ -9,8 +9,8 @@ class Nas:
         self._host = "nas"
         self._drive_sys = "sys"
         self._drives = [
-            "backup", "emilie", "enfants",
-            "musique", "phan", "photos", "programs", self._drive_sys, "videos", "lesaint"
+            "backup", "enfants",
+            "phan", "photos", self._drive_sys, "videos"
         ]
 
     def host(self):
@@ -47,7 +47,7 @@ class Nas:
 class Nas2(Nas):
     def __init__(self):
         self._host = "192.168.1.5"
-        self._drives = [ "bds", "films", "jeux", "series", "vrac"]
+        self._drives = [ "bds", "emilie", "films", "jeux", "lesaint", "musique", "programs", "series", "vrac"]
 
     def drive_sys(self):
         raise NotImpementedError
