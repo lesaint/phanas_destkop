@@ -12,6 +12,9 @@ set -euo pipefail
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 SUDOERS_FILE="/etc/sudoers.d/phan_desktop_automount_$USER"
 
+echo "Umounting all..."
+(cd "/mnt/__NAS__/$USER" && "$BASE_DIR"/umount_all.sh) || true
+
 echo "Creating $SUDOERS_FILE..."
 if [ -f "$SUDOERS_FILE" ]; then
 	echo "  File already exists, printing and overwriting..."
