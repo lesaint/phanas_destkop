@@ -9,8 +9,8 @@
 
 set -euo pipefail
 
-BASE_DIR="$(dirname "$0")"
-SUDOERS_FILE="/etc/sudoers.d/phan_desktop_automount"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+SUDOERS_FILE="/etc/sudoers.d/phan_desktop_automount_$USER"
 
 echo "Creating $SUDOERS_FILE..."
 if [ -f "$SUDOERS_FILE" ]; then
