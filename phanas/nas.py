@@ -6,11 +6,9 @@ from subprocess import DEVNULL
 
 class Nas:
     def __init__(self):
-        self._host = "nas"
+        self._host = "192.168.1.5"
         self._drive_sys = "sys"
-        self._drives = [
-            self._drive_sys
-        ]
+        self._drives = [ "backup", "bds", "emilie", "enfants", "films", "jeux", "lesaint", "musique", "phan", "photos", "programs", self._drive_sys, "series", "videos", "vrac"]
 
     def host(self):
         return self._host
@@ -42,11 +40,3 @@ class Nas:
 
         # call local ping command, suppress stdout and stderr output as we only care about exit code
         return subprocess.call(command, stdout=DEVNULL, stderr=DEVNULL) == 0
-
-class Nas2(Nas):
-    def __init__(self):
-        self._host = "192.168.1.5"
-        self._drives = [ "backup", "bds", "emilie", "enfants", "films", "jeux", "lesaint", "musique", "phan", "photos", "programs", "series", "videos", "vrac"]
-
-    def drive_sys(self):
-        raise NotImpementedError
