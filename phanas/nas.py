@@ -8,7 +8,8 @@ class Nas:
     def __init__(self):
         self._host = "192.168.1.5"
         self._drive_sys = "sys"
-        self._drives = [ "backup", "bds", "emilie", "enfants", "films", "jeux", "lesaint", "musique", "phan", "photos", "programs", self._drive_sys, "series", "videos", "vrac"]
+        self._drives = [ "backup", "bds", "emilie", "enfants", "films", "jeux", "lesaint", "livres", "musique", "phan",
+                         "photos", "programs", self._drive_sys, "series", "videos", "vrac"]
 
     def host(self):
         return self._host
@@ -25,7 +26,7 @@ class Nas:
         else:
             return False, "{} is not online".format(self._host)
 
-	# from https://stackoverflow.com/a/32684938
+    # from https://stackoverflow.com/a/32684938
     def __ping(self, host):
         """
         Returns True if host (str) responds to a ping request.
