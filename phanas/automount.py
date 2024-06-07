@@ -11,6 +11,7 @@ from subprocess import PIPE
 
 MOUNT_DIR_NAME = "__NAS__"
 
+
 class Env:
     linux_username = getpass.getuser()
     # from https://stackoverflow.com/a/4028943
@@ -25,6 +26,7 @@ class Env:
     deprecated_credential_file_path = Path(__script_dir) / ".phanas"
     credential_file_path = Path(__script_dir) / ".smb_phanas"
 
+
 class AutoMount:
     __logger = logging.getLogger("automount")
 
@@ -35,12 +37,12 @@ class AutoMount:
         self.__logger.info("Mount dir=%s", self.env.base_mount_dir_path)
 
     def check_linux(self):
-        return sys.platform.startswith('linux')
+        return sys.platform.startswith("linux")
 
     # def check_system_prerequisites(self):
-        # check cifs-utils is installed
-        # from https://askubuntu.com/a/336739
-        # $ apt-cache policy cifs-utils
+    # check cifs-utils is installed
+    # from https://askubuntu.com/a/336739
+    # $ apt-cache policy cifs-utils
 
     def check_online(self):
         status, msg = self.nas.check_online()
@@ -66,7 +68,9 @@ class AutoMount:
         if not status:
             return False, msg
 
-        status, msg, username, pwd = phanas.file_utils.read_credentials_file(self.env.credential_file_path)
+        status, msg, username, pwd = phanas.file_utils.read_credentials_file(
+            self.env.credential_file_path
+        )
         if not status:
             return False, msg
         self.__logger.info("PhanNas username: %s", username)
@@ -80,7 +84,9 @@ class AutoMount:
         if self.env.credential_file_path.is_file():
             return False, "Both deprecated and new credentials file are present"
         self.__logger.info("derecated credentials file detected, renaming it...")
-        os.rename(self.env.deprecated_credential_file_path, self.env.credential_file_path)
+        os.rename(
+            self.env.deprecated_credential_file_path, self.env.credential_file_path
+        )
 
         mounted_drives = []
         for drive in self.nas.drives():
@@ -89,7 +95,9 @@ class AutoMount:
                 mounted_drives.append(drive)
 
         if mounted_drives:
-            return False, "The following drives must be remounted: {}".format(", ".join(mounted_drives))
+            return False, "The following drives must be remounted: {}".format(
+                ", ".join(mounted_drives)
+            )
 
         return True, None
 
@@ -100,10 +108,12 @@ class AutoMount:
                 global_status = False
                 global_msg.append(msg)
 
-
     def connect_drives(self):
         if not self.env.mount_dir_path.exists():
-            self.__logger.info("mount dir %s for user does not exist, creating it...", self.env.mount_dir_path)
+            self.__logger.info(
+                "mount dir %s for user does not exist, creating it...",
+                self.env.mount_dir_path,
+            )
             self.env.mount_dir_path.mkdir()
         elif not self.env.mount_dir_path.is_dir():
             return False, "{} should be a directory".format(self.env.mount_dir_path)
@@ -145,7 +155,9 @@ class AutoMount:
 
     def __check_mount_dir(self, sub_dir_path):
         if not sub_dir_path.exists():
-            self.__logger.info("Mount sub dir %s does not exist. Creating it...", sub_dir_path)
+            self.__logger.info(
+                "Mount sub dir %s does not exist. Creating it...", sub_dir_path
+            )
             sub_dir_path.mkdir()
             return True, None
         if not sub_dir_path.is_dir():
@@ -159,16 +171,21 @@ class AutoMount:
         if not os.path.ismount(dir_path):
             return False, None
 
-        command = [ "/bin/findmnt",
+        command = [
+            "/bin/findmnt",
             # exit with 1 if directory is not mounted
-            "--target", dir_path,
+            "--target",
+            dir_path,
             # do not output column headers
             "--noheadings",
             # output only the device
-            "--output", "SOURCE" ]
+            "--output",
+            "SOURCE",
+        ]
 
-        findmount_process = subprocess.run(command,
-            stdout=PIPE, stderr=PIPE, encoding="utf-8")
+        findmount_process = subprocess.run(
+            command, stdout=PIPE, stderr=PIPE, encoding="utf-8"
+        )
         if findmount_process.returncode == 1:
             return False, None
 
@@ -176,26 +193,41 @@ class AutoMount:
         if expected_device == actual_device.split("\n")[0]:
             return True, None
         else:
-            return False, "{} mounted to the wrong device: {}".format(dir_path, actual_device)
+            return False, "{} mounted to the wrong device: {}".format(
+                dir_path, actual_device
+            )
 
     def __mount_drive(self, dir_path, device):
         # https://unix.stackexchange.com/a/104652 for file_mode and dir_mode => files can't be made executable on samdba drive (unless they all are executable)
-        mount_options = "uid={},gid={},vers=2.1,file_mode=0644,dir_mode=0755,credentials={}".format(os.getuid(), os.getgid(), self.env.credential_file_path)
+        mount_options = (
+            "uid={},gid={},vers=2.1,file_mode=0644,dir_mode=0755,credentials={}".format(
+                os.getuid(), os.getgid(), self.env.credential_file_path
+            )
+        )
         command = [
             "sudo",
             # will fail if password needed => require sudoers to be configured in advance
             # --reset-timestamp ignores previously provided password
-            "--non-interactive", "--reset-timestamp",
-            "mount", "--types", "cifs", device, str(dir_path),
-            "--options", mount_options
+            "--non-interactive",
+            "--reset-timestamp",
+            "mount",
+            "--types",
+            "cifs",
+            device,
+            str(dir_path),
+            "--options",
+            mount_options,
         ]
 
-        p = subprocess.run(command, stdin=PIPE,
-            stdout=PIPE, stderr=PIPE, universal_newlines=True)
+        p = subprocess.run(
+            command, stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True
+        )
         if p.returncode == 0:
             return True, None
         else:
-            return False, "Failed to mount {} in {}: {}".format(device, dir_path, p.stderr)
+            return False, "Failed to mount {} in {}: {}".format(
+                device, dir_path, p.stderr
+            )
 
     def configure_desktop(self):
         status, msg = self.__configure_nas_directory()
@@ -213,7 +245,9 @@ class AutoMount:
             self.__logger.info("Creating user NAS directory %s...", user_nas_dir_path)
             user_nas_dir_path.mkdir()
         elif not user_nas_dir_path.is_dir():
-            return False, "User NAS directory {} is not a directory".format(user_nas_dir_path)
+            return False, "User NAS directory {} is not a directory".format(
+                user_nas_dir_path
+            )
 
         status, msg = self.___create_symlinks(user_nas_dir_path)
         if not status:
@@ -221,7 +255,6 @@ class AutoMount:
 
         return True, None
 
-        
     def ___create_symlinks(self, user_nas_dir_path):
         global_status = True
         global_msg = []
@@ -248,6 +281,11 @@ class AutoMount:
         else:
             actual_target = symlink_path.resolve()
             if actual_target != symlink_target:
-                return False, "{} does not target expected directory (got={}, expected={})".format(symlink_path, actual_target, symlink_target)
+                return (
+                    False,
+                    "{} does not target expected directory (got={}, expected={})".format(
+                        symlink_path, actual_target, symlink_target
+                    ),
+                )
 
         return True, None

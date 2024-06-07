@@ -10,6 +10,7 @@ __LOGGING_EXPIRATION_IN_DAYS = 60
 __script_dir_path = Path(sys.path[0])
 __log_dir_path = __script_dir_path / "logs"
 
+
 def configure_logging():
     timestamp = datetime.today().strftime(__LOGGING_TIMESTAMP_FORMAT)
     logfile_path = __log_dir_path / "{}_phanas.log".format(timestamp)
@@ -21,25 +22,23 @@ def configure_logging():
     logging.basicConfig(
         level=logging.INFO,
         format="[%(asctime)s][%(name)-9.9s][%(levelname)-4.4s] %(message)s",
-        handlers=[
-            logging.FileHandler(logfile_path),
-            logging.StreamHandler()
-        ]
+        handlers=[logging.FileHandler(logfile_path), logging.StreamHandler()],
     )
 
     __purge_log_dir()
+
 
 def __purge_log_dir():
     rootLogger = logging.getLogger()
 
     for file in __log_dir_path.glob("*.log"):
         day = __read_day_from_backup_file(file)
-        threshold_day = datetime.today() - timedelta(days = __LOGGING_EXPIRATION_IN_DAYS)
+        threshold_day = datetime.today() - timedelta(days=__LOGGING_EXPIRATION_IN_DAYS)
         if day < threshold_day:
             rootLogger.info("deleting old logfile %s...", file)
             file.unlink()
 
 
 def __read_day_from_backup_file(file_path):
-    day_str = file_path.stem[0:len("2020-06-18")]
+    day_str = file_path.stem[0 : len("2020-06-18")]
     return datetime.strptime(day_str, __LOGGING_DATE_FORMAT)

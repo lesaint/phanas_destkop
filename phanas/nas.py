@@ -1,15 +1,31 @@
-
 import platform
 import subprocess
 
 from subprocess import DEVNULL
 
+
 class Nas:
     def __init__(self):
         self._host = "192.168.1.5"
         self._drive_sys = "sys"
-        self._drives = [ "backup", "bds", "emilie", "enfants", "films", "jeux", "lesaint", "livres", "musique", "phan",
-                         "photos", "programs", self._drive_sys, "series", "videos", "vrac"]
+        self._drives = [
+            "backup",
+            "bds",
+            "emilie",
+            "enfants",
+            "films",
+            "jeux",
+            "lesaint",
+            "livres",
+            "musique",
+            "phan",
+            "photos",
+            "programs",
+            self._drive_sys,
+            "series",
+            "videos",
+            "vrac",
+        ]
 
     def host(self):
         return self._host
@@ -34,7 +50,7 @@ class Nas:
         """
 
         # Option for the number of packets as a function of
-        param = "-n" if platform.system().lower()=="windows" else "-c"
+        param = "-n" if platform.system().lower() == "windows" else "-c"
 
         # Building the command. Ex: "ping -c 1 google.com"
         command = ["ping", param, "1", self._host]

@@ -6,4 +6,5 @@ state.phanas
 logs
 __pycache__
 .idea
+.venv
 

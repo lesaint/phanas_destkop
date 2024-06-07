@@ -7,6 +7,7 @@ import time
 
 PROGRAM_NAME = "PhanNas Desktop"
 
+
 class Output:
     def initialize(self, runEngine):
         pass
@@ -23,6 +24,7 @@ class Output:
     def close(self):
         pass
 
+
 class PhanasDesktop:
     __config = None
     __logger = None
@@ -36,7 +38,9 @@ class PhanasDesktop:
 
     def _do_automount(self, output):
         if not self.autoMount.check_linux():
-            self._add_persistent_msg(output, "Connecting NAS drives: no action, only supported on Linux")
+            self._add_persistent_msg(
+                output, "Connecting NAS drives: no action, only supported on Linux"
+            )
             return True
 
         self._info_label(output, "Checking NAS is online...")
@@ -44,7 +48,7 @@ class PhanasDesktop:
         if not status:
             self._failure(msg)
             return False
-        
+
         self._info_label(output, "Checking file prerequisites...")
         status, msg = self.autoMount.check_file_prerequisites()
         if not status:
@@ -109,7 +113,6 @@ class PhanasDesktop:
         else:
             self._info_label(output, "Backup not configured")
 
-
     def _do_things(self, output):
         if not self._do_automount(output):
             return
@@ -118,11 +121,10 @@ class PhanasDesktop:
         if not self._do_nascopy(output):
             return
         self._do_backup(output)
-        
 
     def do_things(self, output):
         self._do_things(output)
-        
+
         self._info_label(output, "     Closing in 3 seconds...")
         time.sleep(3)
         self._close(output)

@@ -6,6 +6,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 from phanas.phanas_desktop import Output, PhanasDesktop, PROGRAM_NAME
 
+
 class MyWindow(Gtk.Window, Output):
     __persistent_msg = []
     __phanasDesktop = None
@@ -13,8 +14,9 @@ class MyWindow(Gtk.Window, Output):
     def __init__(self, phanasDesktop):
         self.__phanasDesktop = phanasDesktop
 
-        Gtk.Window.__init__(self, title=PROGRAM_NAME,
-            default_width=200, resizable=False)
+        Gtk.Window.__init__(
+            self, title=PROGRAM_NAME, default_width=200, resizable=False
+        )
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add(self.box)
@@ -51,7 +53,7 @@ class MyWindow(Gtk.Window, Output):
 
     def __effective_msg_of(self, msg):
         if self.__persistent_msg:
-            return "* "  + "\n* ".join(self.__persistent_msg) + "\n" + msg
+            return "* " + "\n* ".join(self.__persistent_msg) + "\n" + msg
         return msg
 
     def set_label_text(self, text):
@@ -61,6 +63,7 @@ class MyWindow(Gtk.Window, Output):
 
     def close(self):
         GLib.idle_add(Gtk.main_quit)
+
 
 def run(config):
     logger = logging.getLogger("login_gui")

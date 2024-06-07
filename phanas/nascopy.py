@@ -5,11 +5,12 @@ import sys
 
 from pathlib import Path
 
+
 class NasCopy:
     __logger = logging.getLogger("nascopy")
 
     __script_path = None
-    
+
     def __init__(self, config):
         self.__load_nascopyscript_path(config)
 
@@ -26,8 +27,15 @@ class NasCopy:
             return False
 
         nascopy_config = config[nascopy_name]
-        if not isinstance(nascopy_config, dict) or not script_path_name in nascopy_config:
-            self.__logger.info("'%s' is not an object or does not contain name '%s'", nascopy_name, script_path_name)
+        if (
+            not isinstance(nascopy_config, dict)
+            or not script_path_name in nascopy_config
+        ):
+            self.__logger.info(
+                "'%s' is not an object or does not contain name '%s'",
+                nascopy_name,
+                script_path_name,
+            )
             return False
 
         script_path_str = nascopy_config[script_path_name]
@@ -55,19 +63,24 @@ class NasCopy:
 
         return False
 
-
     def do_nascopy(self):
-        command = [ self.__script_path ]
+        command = [self.__script_path]
 
-        proc = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, universal_newlines = True)
+        proc = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+        )
 
         def check_std(std, loglevel):
-           while True:
+            while True:
                 output = std.readline()
                 if output:
                     self.__logger.log(loglevel, output.strip())
                 else:
-                    break 
+                    break
 
         def check_io():
             check_std(proc.stdout, logging.INFO)

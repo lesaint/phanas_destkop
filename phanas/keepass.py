@@ -13,6 +13,7 @@ import tempfile
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
+
 class KeePass:
     __logger = logging.getLogger("keepass")
 
@@ -95,7 +96,9 @@ class KeePass:
         if self.__keepassxc_cli is None:
             self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI)
         if self.__keepassxc_cli is None:
-            return False, "Neither {} nor {} is installed".format(self.__KEEPASSXC_CLI, self.__KEEPASSXC_CLI_SNAP)
+            return False, "Neither {} nor {} is installed".format(
+                self.__KEEPASSXC_CLI, self.__KEEPASSXC_CLI_SNAP
+            )
         self.__logger.info("keepassxc-cli found: %s", self.__keepassxc_cli)
 
         self.__md5sum = shutil.which(self.__MD5SUM)
@@ -113,15 +116,27 @@ class KeePass:
         if not os.path.ismount(self.__sys_drive_path):
             return False, "{} is not mounted".format(self.__sys_drive_path)
 
-        status, msg, __keyfile_username, self.__keyfile_password = phanas.file_utils.read_credentials_file(self.__credentials_file_path)
+        status, msg, __keyfile_username, self.__keyfile_password = (
+            phanas.file_utils.read_credentials_file(self.__credentials_file_path)
+        )
         if not status:
             return False, msg
         self.__logger.info("Keyfile username: %s", __keyfile_username)
 
-        self.__remote_keyfile_dir_path = self.__sys_drive_path / self.__KEYFILE_DIR_NAME / __keyfile_username
-        self.__remote_keyfile_path = self.__remote_keyfile_dir_path / self.__keyfile_name
-        self.__sync_backup_dir_path = self.__remote_keyfile_dir_path / "{backup_dir}/{host}/{linux_user}".format(
-            backup_dir = "_sync_backup", host = self.__hostname, linux_user = self.__linux_username)
+        self.__remote_keyfile_dir_path = (
+            self.__sys_drive_path / self.__KEYFILE_DIR_NAME / __keyfile_username
+        )
+        self.__remote_keyfile_path = (
+            self.__remote_keyfile_dir_path / self.__keyfile_name
+        )
+        self.__sync_backup_dir_path = (
+            self.__remote_keyfile_dir_path
+            / "{backup_dir}/{host}/{linux_user}".format(
+                backup_dir="_sync_backup",
+                host=self.__hostname,
+                linux_user=self.__linux_username,
+            )
+        )
 
         # remote keyfile dir exists
         if not self.__remote_keyfile_dir_path.is_dir():
@@ -151,15 +166,19 @@ class KeePass:
             return False, msg
 
         if not self.__temp_dir_path.exists():
-            self.__logger.info("%s does not exists, creating it...", self.__temp_dir_path)
+            self.__logger.info(
+                "%s does not exists, creating it...", self.__temp_dir_path
+            )
             self.__temp_dir_path.mkdir()
         elif not self.__temp_dir_path.is_dir():
             return False, "{} is not a directory".format(self.__temp_dir_path)
 
         # create local temp copies of remote file and local file
-        with tempfile.NamedTemporaryFile(dir = self.__temp_dir_path) as local_copy:
-            with tempfile.NamedTemporaryFile(dir = self.__temp_dir_path) as remote_copy:
-                self.__logger.info("temp files: local=%s, remote=%s", local_copy.name, remote_copy.name)
+        with tempfile.NamedTemporaryFile(dir=self.__temp_dir_path) as local_copy:
+            with tempfile.NamedTemporaryFile(dir=self.__temp_dir_path) as remote_copy:
+                self.__logger.info(
+                    "temp files: local=%s, remote=%s", local_copy.name, remote_copy.name
+                )
 
                 shutil.copyfile(self.__local_keyfile_path, local_copy.name)
                 shutil.copyfile(self.__remote_keyfile_path, remote_copy.name)
@@ -173,7 +192,7 @@ class KeePass:
                 if not self.__merge_keyfiles(local_copy.name, remote_copy.name):
                     # TODO remove backups to avoid preventing new attempt to synchronize
                     return False, "{} failed to merge remote keyfile"
-                
+
                 # overwrite remote and local with up to date file
                 shutil.copy(remote_copy.name, self.__remote_keyfile_path)
                 self.__logger.info("%s synchronized", self.__remote_keyfile_path)
@@ -192,13 +211,21 @@ class KeePass:
             return True, None
 
         if not local_timestamp == remote_timestamp:
-            return False, "Latest backup of remote ({}) doesn't have the same timestamp as latest backup of local ({})".format(
-                latest_remote_backup_path.name, latest_local_backup_path.name)
+            return (
+                False,
+                "Latest backup of remote ({}) doesn't have the same timestamp as latest backup of local ({})".format(
+                    latest_remote_backup_path.name, latest_local_backup_path.name
+                ),
+            )
 
         # TODO if merge marker file exists, return true
 
-        local_keyfile_unchanged = phanas.file_utils.has_same_content(latest_local_backup_path, self.__local_keyfile_path)
-        remote_keyfile_unchanged = phanas.file_utils.has_same_content(latest_remote_backup_path, self.__remote_keyfile_path)
+        local_keyfile_unchanged = phanas.file_utils.has_same_content(
+            latest_local_backup_path, self.__local_keyfile_path
+        )
+        remote_keyfile_unchanged = phanas.file_utils.has_same_content(
+            latest_remote_backup_path, self.__remote_keyfile_path
+        )
         if local_keyfile_unchanged and remote_keyfile_unchanged:
             return False, None
 
@@ -208,7 +235,9 @@ class KeePass:
         if not self.__sync_backup_dir_path.is_dir():
             return None, None
 
-        glob = "*_{nas_or_local}_{keyfilename}".format(nas_or_local = "local" if local else "nas", keyfilename = self.__keyfile_name)
+        glob = "*_{nas_or_local}_{keyfilename}".format(
+            nas_or_local="local" if local else "nas", keyfilename=self.__keyfile_name
+        )
         max_date = None
         latest_backup_path = None
         for file in self.__sync_backup_dir_path.glob(glob):
@@ -220,10 +249,23 @@ class KeePass:
         return latest_backup_path, max_date
 
     def __merge_keyfiles(self, into_keyfile, from_keyfile):
-        command = [ self.__keepassxc_cli, "merge", "--quiet", "--same-credentials", into_keyfile, from_keyfile ]
+        command = [
+            self.__keepassxc_cli,
+            "merge",
+            "--quiet",
+            "--same-credentials",
+            into_keyfile,
+            from_keyfile,
+        ]
 
-        proc = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
-        outs, errs = proc.communicate(input = self.__keyfile_password)
+        proc = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        )
+        outs, errs = proc.communicate(input=self.__keyfile_password)
         self.__logger.info("*********** output ***********\n%s", outs)
         self.__logger.info("***********  errs  ***********\n%s", errs)
 
@@ -235,7 +277,11 @@ class KeePass:
             return False, msg
 
         # sync backup directory exists or we create it
-        for d in [self.__sync_backup_dir_path.parents[1], self.__sync_backup_dir_path.parents[0], self.__sync_backup_dir_path]:
+        for d in [
+            self.__sync_backup_dir_path.parents[1],
+            self.__sync_backup_dir_path.parents[0],
+            self.__sync_backup_dir_path,
+        ]:
             if not d.exists():
                 self.__logger.info("%s does not exists, creating it...", d)
                 d.mkdir()
@@ -243,16 +289,34 @@ class KeePass:
                 return False, "{} is not a directory".format(d)
 
         timestamp = datetime.today().strftime(self.__BACKUP_TIMESTAMP_FORMAT)
-        remote_keyfile_backup_path = self.__sync_backup_dir_path / "{date}_nas_{keyfilename}".format(date = timestamp, keyfilename = self.__keyfile_name)
-        local_keyfile_backup_path = self.__sync_backup_dir_path / "{date}_local_{keyfilename}".format(date = timestamp, keyfilename = self.__keyfile_name)
+        remote_keyfile_backup_path = (
+            self.__sync_backup_dir_path
+            / "{date}_nas_{keyfilename}".format(
+                date=timestamp, keyfilename=self.__keyfile_name
+            )
+        )
+        local_keyfile_backup_path = (
+            self.__sync_backup_dir_path
+            / "{date}_local_{keyfilename}".format(
+                date=timestamp, keyfilename=self.__keyfile_name
+            )
+        )
         if remote_keyfile_backup_path.exists() or local_keyfile_backup_path.exists():
-            return False, "backup file {} or {} already exists".format(remote_keyfile_backup_path, local_keyfile_backup_path)
+            return False, "backup file {} or {} already exists".format(
+                remote_keyfile_backup_path, local_keyfile_backup_path
+            )
 
         self.__logger.info("remote keyfile backup is %s", remote_keyfile_backup_path)
         self.__logger.info("local keyfile backup is %s", local_keyfile_backup_path)
 
-        shutil.copyfile(self.__remote_keyfile_path, remote_keyfile_backup_path, follow_symlinks = False)
-        shutil.copyfile(self.__local_keyfile_path, local_keyfile_backup_path, follow_symlinks = False)
+        shutil.copyfile(
+            self.__remote_keyfile_path,
+            remote_keyfile_backup_path,
+            follow_symlinks=False,
+        )
+        shutil.copyfile(
+            self.__local_keyfile_path, local_keyfile_backup_path, follow_symlinks=False
+        )
         phanas.file_utils.make_readonly(remote_keyfile_backup_path)
         phanas.file_utils.make_readonly(local_keyfile_backup_path)
 
@@ -264,7 +328,9 @@ class KeePass:
 
         for file in self.__sync_backup_dir_path.glob("*.kdbx"):
             day = self.__read_day_from_backup_file(file)
-            threshold_day = datetime.today() - timedelta(days = self.__BACKUP_EXPIRATION_IN_DAYS)
+            threshold_day = datetime.today() - timedelta(
+                days=self.__BACKUP_EXPIRATION_IN_DAYS
+            )
             if day < threshold_day:
                 self.__logger.info("deleting old backup %s...", file)
                 file.unlink()
@@ -272,12 +338,13 @@ class KeePass:
         return True, None
 
     def __read_day_from_backup_file(self, file_path):
-        day_str = file_path.stem[0:len("2020-06-18")]
+        day_str = file_path.stem[0 : len("2020-06-18")]
         return datetime.strptime(day_str, self.__BACKUP_DATE_FORMAT)
 
     def __read_timestamp_from_backup_file(self, file_path):
-        timestamp_str = file_path.stem[0:len("2020-06-18_09-32-45")]
+        timestamp_str = file_path.stem[0 : len("2020-06-18_09-32-45")]
         return datetime.strptime(timestamp_str, self.__BACKUP_TIMESTAMP_FORMAT)
+
 
 def run(config):
     logger = logging.getLogger("keepass")

@@ -8,6 +8,7 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from io import StringIO
 
+
 class Backup:
     __logger = logging.getLogger("backup")
 
@@ -22,7 +23,7 @@ class Backup:
     __LAST_BACKUP_TIMESTAMP_FORMAT = "{}_%H-%M-%S".format(__LAST_BACKUP_DATE_FORMAT)
     __LAST_BACKUP_LINE_PREFIX = "last_backup_date="
     __lastbackup_day = None
-    
+
     def __init__(self, config):
         self.__load_backupscript_path(config)
         self.__load_lastbackup_date()
@@ -41,7 +42,11 @@ class Backup:
 
         backup_config = config[backup_name]
         if not isinstance(backup_config, dict) or not script_path_name in backup_config:
-            self.__logger.info("'%s' is not an object or does not contain name '%s'", backup_name, script_path_name)
+            self.__logger.info(
+                "'%s' is not an object or does not contain name '%s'",
+                backup_name,
+                script_path_name,
+            )
             return False
 
         script_path_str = backup_config[script_path_name]
@@ -67,7 +72,7 @@ class Backup:
         if not self.__state_file_path.is_file():
             return
 
-        with open(self.__state_file_path, 'r') as f:
+        with open(self.__state_file_path, "r") as f:
             line = f.readline()
             while line.startswith("#"):
                 line = f.readline()
@@ -77,9 +82,11 @@ class Backup:
                 return
 
             prefix_length = len(self.__LAST_BACKUP_LINE_PREFIX)
-            lastbackup_day_str = line[prefix_length:prefix_length + len("2020-06-18")]
+            lastbackup_day_str = line[prefix_length : prefix_length + len("2020-06-18")]
 
-            self.__lastbackup_day = datetime.strptime(lastbackup_day_str, self.__LAST_BACKUP_DATE_FORMAT).date()
+            self.__lastbackup_day = datetime.strptime(
+                lastbackup_day_str, self.__LAST_BACKUP_DATE_FORMAT
+            ).date()
             self.__logger.info("last backup day: %s", self.__lastbackup_day)
 
     def should_backup(self):
@@ -92,25 +99,32 @@ class Backup:
         if not self.__lastbackup_day:
             return False
 
-        threshold_day = date.today() - timedelta(days = self.__LAST_BACKUP_MAX_AGE_IN_DAYS)
+        threshold_day = date.today() - timedelta(
+            days=self.__LAST_BACKUP_MAX_AGE_IN_DAYS
+        )
         if self.__lastbackup_day < threshold_day:
             return False
 
         return True
 
-
     def do_backup(self):
-        command = [ self.__script_path ]
+        command = [self.__script_path]
 
-        proc = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, universal_newlines = True)
+        proc = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+        )
 
         def check_std(std, loglevel):
-           while True:
+            while True:
                 output = std.readline()
                 if output:
                     self.__logger.log(loglevel, output.strip())
                 else:
-                    break 
+                    break
 
         def check_io():
             check_std(proc.stdout, logging.INFO)
@@ -132,7 +146,7 @@ class Backup:
         if not self.__state_file_path.is_file():
             add_header = True
 
-        with open(self.__state_file_path, 'w') as f:
+        with open(self.__state_file_path, "w") as f:
             if add_header:
                 f.write(self.__STATE_FILE_HEADER + "\n")
             timestamp = datetime.today().strftime(self.__LAST_BACKUP_TIMESTAMP_FORMAT)
