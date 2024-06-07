@@ -1,21 +1,10 @@
 help:
-	@echo 'Makefile for a pelican Web site                                           '
+	@echo 'Makefile for PhanasDesktop                                                '
 	@echo '                                                                          '
 	@echo 'Usage:                                                                    '
-	@echo '   make venv                           initialize venv                    '
-	@echo '   make venvclean                      delete venv                        '
-	@echo '   make html                           (re)generate the web site          '
-	@echo '   make clean                          remove the generated files         '
-	@echo '   make regenerate                     regenerate files upon modification '
-	@echo '   make publish                        generate using production settings '
-	@echo '   make serve [PORT=8000]              serve site at http://localhost:8000'
-	@echo '   make serve-global [SERVER=0.0.0.0]  serve (as root) to $(SERVER):80    '
-	@echo '   make devserver [PORT=8000]          serve and regenerate together      '
-	@echo '   make devserver-global               regenerate and serve on 0.0.0.0    '
-	@echo '   make github                         upload the web site via gh-pages   '
-	@echo '                                                                          '
-	@echo 'Set the DEBUG variable to 1 to enable debugging, e.g. make DEBUG=1 html   '
-	@echo 'Set the RELATIVE variable to 1 to enable relative urls                    '
+	@echo '   make format                         format Python code of the project  '
+	@echo '   make venv                           create Python Virtual Environment  '
+	@echo '   make venvclean                      delete Python Virtual Environment  '
 	@echo '                                                                          '
 
 
@@ -41,4 +30,4 @@ format: venv
 	python3 -m black phanas/ phanas_desktop.py
 
 
-.PHONY: venv venvclean html help clean regenerate serve serve-global devserver devserver-global publish github
+.PHONY: venv venvclean format
