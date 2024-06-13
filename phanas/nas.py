@@ -6,7 +6,7 @@ from subprocess import DEVNULL
 
 class Nas:
     def __init__(self):
-        self._host = "192.168.1.5"
+        self._host = "10.0.0.5"
         self._drive_sys = "sys"
         self._drives = [
             "backup",
