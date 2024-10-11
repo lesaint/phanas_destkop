@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # This script create the sudoers permissions required by PhanDesktop's automount feature
-# by creating a file in /etc/sudoers.d named phan_desktop_automount
+# by creating a file in /etc/sudoers.d named phan_desktop_automount_$USER
 # 
 # The script overwrites the file if it already exists, after dumping its content
 # to stdout
