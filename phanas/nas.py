@@ -9,11 +9,13 @@ class Nas:
         self._host = "10.0.0.5"
         self._drive_sys = "sys"
         self._drives = [
+            "antonin",
             "backup",
             "bds",
             "emilie",
             "enfants",
             "films",
+            "gaetan",
             "jeux",
             "lesaint",
             "livres",
