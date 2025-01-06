@@ -11,9 +11,6 @@ PROGRAM_NAME = "PhanNas Desktop"
 
 
 class Output:
-    def initialize(self, runEngine):
-        pass
-
     def failure(self, msg):
         pass
 
@@ -28,11 +25,7 @@ class Output:
 
 
 class PhanasDesktop:
-    __config = None
-    __logger = None
-    __output = None
-
-    def __init__(self, config, logger):
+    def __init__(self, config, logger: logging.Logger):
         self.__config = config
         self.__logger = logger
 
