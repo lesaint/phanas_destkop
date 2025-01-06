@@ -8,8 +8,10 @@ import sys
 
 from pathlib import Path
 from subprocess import PIPE
+from abc import abstractmethod, ABC
 
 MOUNT_DIR_NAME = "__NAS__"
+LOGGER_NAME = "automount"
 
 
 class Env:
@@ -27,16 +29,82 @@ class Env:
     credential_file_path = Path(__script_dir) / ".smb_phanas"
 
 
-class AutoMount:
-    __logger = logging.getLogger("automount")
+class AutoMountLogger(ABC):
+    @abstractmethod
+    def info(self, msg: str) -> None:
+        """ Informative message typically describing an achieved state"""
+        pass
 
-    env = Env()
-    nas = phanas.nas.Nas()
+    @abstractmethod
+    def transient_info(self, msg: str) -> None:
+        """ Informative message typically describing an ongoing operation rather than an achieved state"""
+        pass
 
+    @abstractmethod
+    def error(self, msg: str) -> None:
+        """ Error message"""
+        pass
+
+
+class DefaultAutMountLogger(AutoMountLogger):
     def __init__(self):
-        self.__logger.info("Mount dir=%s", self.env.base_mount_dir_path)
+        self._logger = logging.getLogger(LOGGER_NAME)
 
-    def check_linux(self):
+    def info(self, msg: str) -> None:
+        self._logger.info(msg)
+
+    def transient_info(self, msg: str) -> None:
+        self._logger.debug(msg)
+
+    def error(self, msg: str) -> None:
+        self._logger.error(msg)
+
+
+class AutoMount:
+    def __init__(self):
+        self._logger = logging.getLogger(LOGGER_NAME)
+        self.env = Env()
+        self.nas = phanas.nas.Nas()
+        self._logger.info("Mount dir=%s", self.env.base_mount_dir_path)
+
+    def run(self, automount_logger: AutoMountLogger = DefaultAutMountLogger()) -> bool:
+        automount_logger.info("Automount started")
+
+        if not self._check_linux():
+            automount_logger.info(
+                "Connecting NAS drives: no action, only supported on Linux"
+            )
+            return True
+
+        automount_logger.transient_info("Checking NAS is online...")
+        status, msg = self._check_online()
+        if not status:
+            automount_logger.error(msg)
+            return False
+
+        automount_logger.transient_info("Checking file prerequisites...")
+        status, msg = self._check_file_prerequisites()
+        if not status:
+            automount_logger.error(msg)
+            return False
+
+        automount_logger.transient_info("Connecting NAS drives...")
+        status, msg = self._connect_drives()
+        if not status:
+            automount_logger.error(msg)
+            return False
+
+        automount_logger.transient_info("Configuring desktop...")
+        status, msg = self._configure_desktop()
+        if not status:
+            automount_logger.error(msg)
+            return False
+
+        automount_logger.info("All NAS drives connected!")
+        return True
+
+    @staticmethod
+    def _check_linux():
         return sys.platform.startswith("linux")
 
     # def check_system_prerequisites(self):
@@ -44,14 +112,14 @@ class AutoMount:
     # from https://askubuntu.com/a/336739
     # $ apt-cache policy cifs-utils
 
-    def check_online(self):
+    def _check_online(self):
         status, msg = self.nas.check_online()
         if not status:
             return False, msg
 
         return True, None
 
-    def check_file_prerequisites(self):
+    def _check_file_prerequisites(self):
         if not self.env.base_mount_dir_path.is_dir():
             return False, "mount dir does not exist"
 
@@ -73,7 +141,7 @@ class AutoMount:
         )
         if not status:
             return False, msg
-        self.__logger.info("PhanNas username: %s", username)
+        self._logger.info("PhanNas username: %s", username)
 
         return True, None
 
@@ -83,7 +151,7 @@ class AutoMount:
 
         if self.env.credential_file_path.is_file():
             return False, "Both deprecated and new credentials file are present"
-        self.__logger.info("derecated credentials file detected, renaming it...")
+        self._logger.info("derecated credentials file detected, renaming it...")
         os.rename(
             self.env.deprecated_credential_file_path, self.env.credential_file_path
         )
@@ -108,9 +176,9 @@ class AutoMount:
                 global_status = False
                 global_msg.append(msg)
 
-    def connect_drives(self):
+    def _connect_drives(self):
         if not self.env.mount_dir_path.exists():
-            self.__logger.info(
+            self._logger.info(
                 "mount dir %s for user does not exist, creating it...",
                 self.env.mount_dir_path,
             )
@@ -126,11 +194,11 @@ class AutoMount:
 
     def __connect_drive(self, nas, nas_drive, mount_sub_dir):
         device, sub_dir_path = self.__drive_and_dir_for(nas, nas_drive, mount_sub_dir)
-        self.__logger.info("Mounting %s into %s... ", device, sub_dir_path)
+        self._logger.info("Mounting %s into %s... ", device, sub_dir_path)
 
         mounted, msg = self.__is_already_mounted(sub_dir_path, device)
         if mounted:
-            self.__logger.info("already mounted")
+            self._logger.info("already mounted")
             return True, None
         status, msg = self.__check_mount_dir(sub_dir_path)
         if msg is not None:
@@ -141,7 +209,7 @@ class AutoMount:
 
         status, msg = self.__mount_drive(sub_dir_path, device)
         if status:
-            self.__logger.info("mounted")
+            self._logger.info("mounted")
         else:
             return False, msg
 
@@ -155,7 +223,7 @@ class AutoMount:
 
     def __check_mount_dir(self, sub_dir_path):
         if not sub_dir_path.exists():
-            self.__logger.info(
+            self._logger.info(
                 "Mount sub dir %s does not exist. Creating it...", sub_dir_path
             )
             sub_dir_path.mkdir()
@@ -229,7 +297,7 @@ class AutoMount:
                 device, dir_path, p.stderr
             )
 
-    def configure_desktop(self):
+    def _configure_desktop(self):
         status, msg = self.__configure_nas_directory()
         if not status:
             return False, msg
@@ -242,7 +310,7 @@ class AutoMount:
     def __configure_nas_directory(self):
         user_nas_dir_path = self.env.home_dir_path / MOUNT_DIR_NAME
         if not user_nas_dir_path.exists():
-            self.__logger.info("Creating user NAS directory %s...", user_nas_dir_path)
+            self._logger.info("Creating user NAS directory %s...", user_nas_dir_path)
             user_nas_dir_path.mkdir()
         elif not user_nas_dir_path.is_dir():
             return False, "User NAS directory {} is not a directory".format(
@@ -274,7 +342,7 @@ class AutoMount:
         symlink_target = self.env.mount_dir_path / drive
 
         if not symlink_path.exists():
-            self.__logger.info("Creating symlink %s", symlink_path)
+            self._logger.info("Creating symlink %s", symlink_path)
             symlink_path.symlink_to(symlink_target, target_is_directory=True)
         elif not symlink_path.is_symlink():
             return False, "{} is not a symlink".format(symlink_path)

@@ -25,6 +25,9 @@ def main():
         "-n", "--nascopy", help="call NAS copy script", action="store_true"
     )
     parser.add_argument("-ng", "--no-gui", help="do not use a GUI", action="store_true")
+    parser.add_argument(
+        "-m", "--automount", help="mount NAS drives (Linux only)", action="store_true"
+    )
     args = parser.parse_args()
 
     config = phanas.file_utils.read_config_file()
@@ -44,6 +47,10 @@ def main():
         import phanas.nascopy as nascopy
 
         nascopy.run(config)
+    elif args.automount:
+        from phanas.automount import AutoMount
+
+        AutoMount().run()
     elif args.no_gui:
         from phanas.phanas_desktop import PhanasDesktop, Output, PROGRAM_NAME
         import logging
