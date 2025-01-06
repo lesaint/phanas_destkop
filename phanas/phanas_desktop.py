@@ -45,7 +45,7 @@ class PhanasDesktop:
             def error(self, msg: str) -> None:
                 self._phanas_desktop.failure(output, msg)
 
-        self.autoMount.run(PersistentMsgAutoMountLogger(self))
+        return self.autoMount.run(PersistentMsgAutoMountLogger(self))
 
     def _do_keyfile_synchronization(self, output):
         self.info_label(output, "Synchronizing keyfiles...")
