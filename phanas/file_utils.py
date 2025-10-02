@@ -25,7 +25,7 @@ def read_config_file():
 ###Returns tuple (success, msg, username, password)
 def read_credentials_file(credential_file_path):
     if not credential_file_path.is_file():
-        return False, "crediential file is missing", None, None
+        return False, "credential file is missing", None, None
 
     stats = credential_file_path.stat()
     # see https://stackoverflow.com/a/5337329

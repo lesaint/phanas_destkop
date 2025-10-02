@@ -1,6 +1,8 @@
 import getpass
 import logging
 import os
+from itertools import chain
+
 import phanas.automount
 import phanas.file_utils
 import phanas.nas
@@ -10,256 +12,342 @@ import subprocess
 import sys
 import tempfile
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
+from phanas.credentials import Credentials
+
+_KEEPASSXC_CLI = "keepassxc-cli"
+_KEEPASSXC_CLI_SNAP = "keepassxc.cli"
+_MD5SUM = "md5sum"
+
+_KEEPASS_CONFIG_JSON_OBJECT_NAME = "keepass"
+_KEYFILES_CONFIG_JSON_OBJECT_NAME = "keyfiles"
+
+_BACKUP_DATE_FORMAT = "%Y-%m-%d"
+_BACKUP_TIMESTAMP_FORMAT = f"{_BACKUP_DATE_FORMAT}_%H-%M-%S"
+_BACKUP_EXPIRATION_IN_DAYS = 60
+
+_KEYFILE_DIR_NAME = "keys"
+_SYNC_BACKUP_DIR_NAME = "_sync_backup"
+
+_logger = logging.getLogger("keepass")
+
+class KeyFile:
+    def __init__(self, relative_path:str, local_path:Path, remote_path:Path):
+        self.relative_path: str = relative_path
+        self.name: str = relative_path.split("/")[1]
+        self.parent_name: str = relative_path.split("/")[0]
+        self.local_path: Path = local_path
+        self.remote_path: Path = remote_path
+
+    def local_file_exists(self) -> bool:
+        return self.local_path.is_file()
+
+    def remote_file_exists(self):
+        return self.remote_path.is_file()
+
+    def local_keyfile_directory(self):
+        return self.local_path.parent
+
+    def __str__(self):
+        return f"Keyfile({self.relative_path}: {self.parent_name}, {self.name}, local_path='{self.local_path}', remote_path='{self.remote_path}')"
+
+# Changes compared to previous code
+# *
+# Changes compared to previous behavior
+# * support more than one keyfile
+# * will create local keyfile when does not exist yet
+# * expects username of current user and one password per keyfile be provided in the credentials file now
+#   the standalone password is not expected anymore
+#   password per keyfile is provided as line such as lesaint/sebastienlesaint.kdbx=foobar
 
 class KeePass:
-    __logger = logging.getLogger("keepass")
-
-    __config = None
-
-    __KEEPASSXC_CLI = "keepassxc-cli"
-    __KEEPASSXC_CLI_SNAP = "keepassxc.cli"
-    __keepassxc_cli = None
-
-    __MD5SUM = "md5sum"
-    __md5sum = None
-
-    __BACKUP_DATE_FORMAT = "%Y-%m-%d"
-    __BACKUP_TIMESTAMP_FORMAT = "{}_%H-%M-%S".format(__BACKUP_DATE_FORMAT)
-    __BACKUP_EXPIRATION_IN_DAYS = 60
-
-    __automount_env = phanas.automount.Env()
-    __nas = phanas.nas.Nas()
-
-    __linux_username = getpass.getuser()
-    # see https://stackoverflow.com/a/799799
-    __hostname = socket.gethostname()
-
-    # from https://stackoverflow.com/a/31867043
-    __script_dir = Path(sys.path[0])
-    __credentials_file_path = __script_dir / ".kpx_phanas"
-    __sys_drive_path = __automount_env.mount_dir_path / __nas.drive_sys()
-
-    __temp_dir_path = __script_dir / ".tmp"
-
-    __KEYFILE_DIR_NAME = "keys"
     __keyfile_password = None
-    __remote_keyfile_dir_path = None
 
-    __sync_backup_dir_path = None
-
-    __keyfile_name = None
-    __remote_keyfile_path = None
-    __local_keyfile_path = None
 
     def __init__(self, config):
-        self.__load_keyfilename(config)
+        self._keepass_config: dict = {}
+        if _KEEPASS_CONFIG_JSON_OBJECT_NAME in config and isinstance(config.get(_KEEPASS_CONFIG_JSON_OBJECT_NAME), dict):
+            self._keepass_config = config[_KEEPASS_CONFIG_JSON_OBJECT_NAME]
+        else:
+            _logger.info("KeePass config not found")
 
-    def __load_keyfilename(self, config):
-        if not config:
-            return False
+        self._linux_username: str = getpass.getuser()
+        # see https://stackoverflow.com/a/799799
+        self._hostname: str = socket.gethostname()
 
-        if not "keepass" in config:
-            return False
+        self._automount_env = phanas.automount.Env()
+        self._nas = phanas.nas.Nas()
 
-        keepass_config = config["keepass"]
-        if not isinstance(keepass_config, dict) or not "keyfile" in keepass_config:
-            return False
+        self._sys_drive_path = self._automount_env.mount_dir_path / self._nas.drive_sys()
+        self._local_dir_path: Path = Path.home() / _KEYFILE_DIR_NAME
+        self._remote_keyfile_dir_path = self._sys_drive_path / _KEYFILE_DIR_NAME
+        # from https://stackoverflow.com/a/31867043
+        script_dir = Path(sys.path[0])
+        self._temp_dir_path = script_dir / ".tmp"
 
-        keyfile_name = keepass_config["keyfile"]
+        self._credentials_file_path = script_dir / ".kpx_phanas"
+        self._credentials: Credentials | None = None
+
+        self._legacy_keyfile: KeyFile | None = None
+        self._keyfiles: list[KeyFile] | None = None
+        self._load_keyfiles(config)
+
+        self._linux_user_sync_backup_dir_path: Path | None = None
+
+        self._keepassxc_cli: Path | None = None
+        self._md5sum: Path | None = None
+
+    def _load_keyfiles(self, config: dict) -> bool:
+        # legacy, expected only the name of the key file, relative path was hardcoded to the current authenticated user
+        keyfile_name = self._keepass_config.get("keyfile")
         if not isinstance(keyfile_name, str) or not keyfile_name:
             return False
+        else:
+            relative_path = f"{self._linux_username}/{keyfile_name}"
+            self._legacy_keyfile = self._new_keyfile_from_relative_path(relative_path=relative_path)
+            self._keyfiles = [self._legacy_keyfile]
 
-        self.__keyfile_name = keyfile_name
-        self.__local_keyfile_path = Path.home() / self.__keyfile_name
-        self.__logger.info("keyfile name: %s", self.__keyfile_name)
+        # expect paths relative to keys directory in sys mount, such as phan/sebastienlesaint.kdbx
+        keyfile_relative_paths = self._keepass_config.get(_KEYFILES_CONFIG_JSON_OBJECT_NAME)
+        if not isinstance(keyfile_relative_paths, list) or not keyfile_relative_paths:
+            return False
+        else:
+            self._keyfiles = [self._new_keyfile_from_relative_path(s.strip()) for s in keyfile_relative_paths if s]
+
+        _logger.info("keyfiles: %s", ",".join(str(keyfile) for keyfile in self._keyfiles))
+
+        return True
+
+    def _new_keyfile_from_relative_path(self, relative_path:str) -> KeyFile:
+        file = KeyFile(
+            relative_path=relative_path,
+            local_path=self._local_dir_path / relative_path,
+            remote_path=self._sys_drive_path / _KEYFILE_DIR_NAME / relative_path,
+        )
+        _logger.info("new keyfile: %s", file)
+        return file
 
     def should_synch_keyfiles(self):
-        return self.__local_keyfile_path and self.__local_keyfile_path.is_file()
+        return self._keyfiles and any([s.remote_file_exists() for s in self._keyfiles])
 
-    def do_sync(self):
+    def do_sync(self) -> tuple[bool, str | None]:
         status, msg = self._check_prerequisites()
         if not status:
-            return False, msg
+            return False, f"Can't synchronize keyfiles\n{msg}"
 
-        status, msg = self._synch_files()
+        status, msg = self._sync_files()
         if not status:
-            return False, msg
+            return False, f"Can't synchronize keyfiles\n{msg}"
 
         return True, None
 
-    def _check_prerequisites(self):
+    def _check_prerequisites(self) -> tuple[bool, str | None]:
         # keepassxc-cli is installed
-        self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI_SNAP)
-        if self.__keepassxc_cli is None:
-            self.__keepassxc_cli = shutil.which(self.__KEEPASSXC_CLI)
-        if self.__keepassxc_cli is None:
-            return False, "Neither {} nor {} is installed".format(
-                self.__KEEPASSXC_CLI, self.__KEEPASSXC_CLI_SNAP
-            )
-        self.__logger.info("keepassxc-cli found: %s", self.__keepassxc_cli)
+        self._keepassxc_cli = shutil.which(_KEEPASSXC_CLI_SNAP)
+        if self._keepassxc_cli is None:
+            self._keepassxc_cli = shutil.which(_KEEPASSXC_CLI)
+        if self._keepassxc_cli is None:
+            return False, f"Neither {_KEEPASSXC_CLI} nor {_KEEPASSXC_CLI_SNAP} is installed"
+        _logger.info("keepassxc-cli found: %s", self._keepassxc_cli)
 
-        self.__md5sum = shutil.which(self.__MD5SUM)
-        if self.__md5sum is None:
-            return False, "{} is not installed".format(self.__MD5SUM)
+        # md5 is installed
+        self._md5sum = shutil.which(_MD5SUM)
+        if self._md5sum is None:
+            return False, f"{_MD5SUM} is not installed"
 
         # NAS is online
-        status, msg = self.__nas.check_online()
+        status, msg = self._nas.check_online()
         if not status:
             return False, msg
 
         # sys drive is mounted
-        if not self.__sys_drive_path.is_dir():
-            return False, "{} is not a directory".format(self.__sys_drive_path)
-        if not os.path.ismount(self.__sys_drive_path):
-            return False, "{} is not mounted".format(self.__sys_drive_path)
+        if not self._sys_drive_path.is_dir():
+            return False, f"{self._sys_drive_path} is not a directory"
+        if not os.path.ismount(self._sys_drive_path):
+            return False, f"{self._sys_drive_path} is not mounted"
+        # remote key dir is a directory
+        if not self._remote_keyfile_dir_path.is_dir():
+            return False, f"{self._remote_keyfile_dir_path} is not a directory"
 
-        status, msg, __keyfile_username, self.__keyfile_password = (
-            phanas.file_utils.read_credentials_file(self.__credentials_file_path)
-        )
-        if not status:
+        # credentials are provided, for each keyfile
+        credentials = Credentials(self._credentials_file_path)
+        msg = credentials.load()
+        if msg:
             return False, msg
-        self.__logger.info("Keyfile username: %s", __keyfile_username)
+        _logger.debug("credentials: %s", credentials)
+        if not credentials.is_legacy_credentials_file:
+            for keyfile in self._keyfiles:
+                if not keyfile.relative_path in credentials.keyfile_passwords:
+                    return False, f"No password for '{keyfile.relative_path}' in credentials file '{credentials.credentials_file_path}'"
+        self._credentials = credentials
 
-        self.__remote_keyfile_dir_path = (
-            self.__sys_drive_path / self.__KEYFILE_DIR_NAME / __keyfile_username
-        )
-        self.__remote_keyfile_path = (
-            self.__remote_keyfile_dir_path / self.__keyfile_name
-        )
-        self.__sync_backup_dir_path = (
-            self.__remote_keyfile_dir_path
-            / "{backup_dir}/{host}/{linux_user}".format(
-                backup_dir="_sync_backup",
-                host=self.__hostname,
-                linux_user=self.__linux_username,
+        how_to_migrate_message = f"Legacy credentials file detected:\n" \
+                                 f"     * change configuration under '{_KEEPASS_CONFIG_JSON_OBJECT_NAME}' to have a list of keyfiles under key '{_KEYFILES_CONFIG_JSON_OBJECT_NAME}'\n" \
+                                 f"     * change '{self._credentials.credentials_file_path}' to have one password per keyfile\n" \
+                                 f"     * create backup directory for the current user: {self._linux_user_sync_backup_dir_path}" \
+                                 f"     * create local directory for keyfiles: {self._local_dir_path}"
+        if self._credentials.is_legacy_credentials_file:
+            return False, how_to_migrate_message
+
+        # legacy mode or new mode but not a mix
+        new_config = 'keyfiles' in self._keepass_config
+        if self._credentials.is_legacy_credentials_file == new_config:
+            return (
+                False,
+                f"Mixing legacy and new mode: credentials={self._credentials.is_legacy_credentials_file}, config={new_config}\n" \
+                "{how_to_migrate_message}"
             )
+
+        # linux username is resolved
+        if not self._linux_username:
+            return False, "linux username could not be resolved"
+
+        # local keyfiles directory exist
+        if not self._local_dir_path.exists() or not self._local_dir_path.is_dir():
+            return False, f"{self._local_dir_path} does not exist or is not a directory"
+
+        # remote keyfiles exist
+        for keyfile in self._keyfiles:
+            if not keyfile.remote_path.is_file():
+                return False, f"{keyfile.remote_path} does not exist"
+
+        self._linux_user_sync_backup_dir_path = (
+                self._remote_keyfile_dir_path / _SYNC_BACKUP_DIR_NAME / self._hostname / self._linux_username
         )
 
-        # remote keyfile dir exists
-        if not self.__remote_keyfile_dir_path.is_dir():
-            return False, "{} is not a directory".format(self.__remote_keyfile_dir_path)
+        # require backup directory for current host and linux username to exist
+        # as a safety to not trigger and run unwanted for a new username
+        if not self._linux_user_sync_backup_dir_path.is_dir():
+            return False, f"{self._linux_user_sync_backup_dir_path} is not a directory. Create it to enable keyfile sync."
 
-        # remote keyfile exists
-        if not self.__remote_keyfile_path.is_file():
-            return False, "{} is not a file".format(self.__remote_keyfile_path)
+        # temp dir and local dir either do not exist (we'll create it) or are directories
+        if self._temp_dir_path.exists() and not self._temp_dir_path.is_dir():
+            return False, f"'{self._temp_dir_path}' is not a directory"
+        if self._local_dir_path.exists() and not self._local_dir_path.is_dir():
+            return False, f"'{self._local_dir_path}' is not a directory"
 
-        # local keyfile exists
-        if not self.__local_keyfile_path.is_file():
-            return False, "{} is not a file".format(self.__local_keyfile_path)
+        # remote keyfiles exist
+        for keyfile in self._keyfiles:
+            # remote keyfile exists
+            if not keyfile.remote_file_exists():
+                return False, "{} is not a file".format(keyfile.remote_path)
 
         return True, None
 
-    def _synch_files(self):
-        success, msg = self.__need_sync()
+    def _sync_files(self) -> tuple[bool, str | None]:
+        success, msg = self._need_sync()
         if not success:
-            if msg:
-                return False, msg
-            self.__logger.info("Keyfiles have not changed")
-            return True, None
+            _logger.info(f"Keyfiles have not changed%s", msg if msg else "")
+            return False, None
 
-        # backup local and remote keyfiles
-        success, msg = self.__backup_keyfiles()
+        if not self._temp_dir_path.exists():
+            _logger.info("%s does not exists, creating it...", self._temp_dir_path)
+            self._temp_dir_path.mkdir()
+
+        success, msg = self._prepare_for_backup()
         if not success:
             return False, msg
 
-        if not self.__temp_dir_path.exists():
-            self.__logger.info(
-                "%s does not exists, creating it...", self.__temp_dir_path
-            )
-            self.__temp_dir_path.mkdir()
-        elif not self.__temp_dir_path.is_dir():
-            return False, "{} is not a directory".format(self.__temp_dir_path)
+        for keyfile in self._keyfiles:
+            success, msg = self._sync_files_of_keyfile(keyfile)
+            if not success:
+                return False, msg
+
+        return True, None
+
+    def _sync_files_of_keyfile(self, keyfile) -> tuple[bool, str | None]:
+        # backup local and remote keyfiles
+        status, msg = self._backup_keyfiles(keyfile=keyfile)
+        if not status:
+            return False, msg
 
         # create local temp copies of remote file and local file
-        with tempfile.NamedTemporaryFile(dir=self.__temp_dir_path) as local_copy:
-            with tempfile.NamedTemporaryFile(dir=self.__temp_dir_path) as remote_copy:
-                self.__logger.info(
-                    "temp files: local=%s, remote=%s", local_copy.name, remote_copy.name
-                )
+        with tempfile.NamedTemporaryFile(dir=self._temp_dir_path) as local_copy:
+            with tempfile.NamedTemporaryFile(dir=self._temp_dir_path) as remote_copy:
+                _logger.info("temp files: local '%s' => '%s', remote '%s' => '%s'",
+                             keyfile.local_path, local_copy.name, keyfile.remote_path, remote_copy.name)
 
-                shutil.copyfile(self.__local_keyfile_path, local_copy.name)
-                shutil.copyfile(self.__remote_keyfile_path, remote_copy.name)
+                shutil.copyfile(keyfile.local_path, local_copy.name)
+                shutil.copyfile(keyfile.remote_path, remote_copy.name)
 
                 # sync remote to local and the other way around
-                self.__logger.info("merging local keyfile into remote...")
-                success, msg = self.__merge_keyfiles(remote_copy.name, local_copy.name)
+                _logger.info("merging local keyfile into remote...")
+                success, msg = self.__merge_keyfiles(keyfile=keyfile, from_file=remote_copy.name, into_file=local_copy.name)
                 if not success:
                     # TODO remove backups to avoid preventing new attempt to synchronize
                     return False, msg
-                self.__logger.info("merging remote keyfile into local...")
-                success, msg = self.__merge_keyfiles(local_copy.name, remote_copy.name)
+                _logger.info("merging remote keyfile into local...")
+                success, msg = self.__merge_keyfiles(keyfile=keyfile, from_file=local_copy.name, into_file=remote_copy.name)
                 if not success:
                     # TODO remove backups to avoid preventing new attempt to synchronize
                     return False, msg
 
                 # overwrite remote and local with up to date file
-                shutil.copy(remote_copy.name, self.__remote_keyfile_path)
-                self.__logger.info("%s synchronized", self.__remote_keyfile_path)
-                shutil.copy(local_copy.name, self.__local_keyfile_path)
-                self.__logger.info("%s synchronized", self.__local_keyfile_path)
+                shutil.copy(remote_copy.name, keyfile.remote_path)
+                _logger.info("%s synchronized", keyfile.remote_path)
+                shutil.copy(local_copy.name, keyfile.local_path)
+                _logger.info("%s synchronized", keyfile.local_path)
 
                 # TODO remove merge marker file (requires function to get the marker file path, tricky...)
 
         return True, None
 
-    def __need_sync(self):
-        latest_local_backup_path, local_timestamp = self.__get_latest_backup(True)
-        latest_remote_backup_path, remote_timestamp = self.__get_latest_backup(False)
+    def _need_sync(self) -> tuple[bool, str | None]:
+        for keyfile in self._keyfiles:
+            # if local keyfile doesn't exist, need to sync
+            if not keyfile.local_file_exists():
+                return True, f"{keyfile.local_path} does not exist"
 
-        if latest_local_backup_path is None or latest_remote_backup_path is None:
-            return True, None
+            latest_local_backup_path, local_timestamp = self._get_latest_backup(keyfile=keyfile, local=True)
+            latest_remote_backup_path, remote_timestamp = self._get_latest_backup(keyfile=keyfile, local=False)
 
-        if not local_timestamp == remote_timestamp:
-            return (
-                False,
-                "Latest backup of remote ({}) doesn't have the same timestamp as latest backup of local ({})".format(
-                    latest_remote_backup_path.name, latest_local_backup_path.name
-                ),
-            )
+            # if either backup is missing, need to sync
+            if latest_local_backup_path is None or latest_remote_backup_path is None:
+                return True, None
 
-        # TODO if merge marker file exists, return true
+            # if backups don't have same timestamp, need to sync
+            if not local_timestamp == remote_timestamp:
+                return (
+                    True,
+                    f"Latest backup of remote ({latest_remote_backup_path.name}) doesn't have the same timestamp "
+                    f"as latest backup of local ({latest_local_backup_path.name})"
+                )
 
-        local_keyfile_unchanged = phanas.file_utils.has_same_content(
-            latest_local_backup_path, self.__local_keyfile_path
-        )
-        remote_keyfile_unchanged = phanas.file_utils.has_same_content(
-            latest_remote_backup_path, self.__remote_keyfile_path
-        )
-        if local_keyfile_unchanged and remote_keyfile_unchanged:
-            return False, None
+            # TODO if merge marker file exists, return true
 
-        return True, None
+            # if content of local keyfile changed since last backup, need to sync
+            if not phanas.file_utils.has_same_content(latest_local_backup_path, keyfile.local_path):
+                return True, f"local keyfile '{keyfile.relative_path}' content changed"
 
-    def __get_latest_backup(self, local):
-        if not self.__sync_backup_dir_path.is_dir():
-            return None, None
+            # if content of remote keyfile changed since last backup, need to sync
+            if not phanas.file_utils.has_same_content(latest_remote_backup_path, keyfile.remote_path):
+                return True, f"remote keyfile '{keyfile.relative_path}' content changed"
 
-        glob = "*_{nas_or_local}_{keyfilename}".format(
-            nas_or_local="local" if local else "nas", keyfilename=self.__keyfile_name
-        )
+        return False, None
+
+    def _get_latest_backup(self, keyfile: KeyFile, local: bool) -> tuple[Path, datetime]:
         max_date = None
         latest_backup_path = None
-        for file in self.__sync_backup_dir_path.glob(glob):
-            timestamp = self.__read_timestamp_from_backup_file(file)
+        for file in self._linux_user_sync_backup_dir_path.glob(f"*_{"local" if local else "nas"}_{keyfile.local_path}"):
+            timestamp = self._read_timestamp_from_backup_file(file)
             if max_date is None or max_date < timestamp:
                 max_date = timestamp
                 latest_backup_path = file
 
         return latest_backup_path, max_date
 
-    def __merge_keyfiles(self, into_keyfile, from_keyfile):
+    def __merge_keyfiles(self, keyfile: KeyFile, into_file: str, from_file: str):
         command = [
-            self.__keepassxc_cli,
+            self._keepassxc_cli,
             "merge",
             "--same-credentials",
-            into_keyfile,
-            from_keyfile,
+            into_file,
+            from_file,
         ]
 
-        self.__logger.info("Running command: %s", command)
+        _logger.info("Running command: %s", command)
         proc = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -267,90 +355,103 @@ class KeePass:
             stderr=subprocess.PIPE,
             universal_newlines=True,
         )
-        outs, errs = proc.communicate(input=self.__keyfile_password)
-        self.__logger.info("*********** output ***********\n%s", outs)
-        self.__logger.info("***********  errs  ***********\n%s", errs)
+        password = self._credentials.keyfile_passwords[keyfile.relative_path]
+        outs, errs = proc.communicate(input=password)
+        _logger.info("*********** output ***********\n%s", outs)
+        _logger.info("***********  errs  ***********\n%s", errs)
 
         if proc.returncode != 0:
             if "Des identifiants invalides ont été fournis" in errs:
-                return False, "Invalid password for keyfile '{}' or '{}'".format(into_keyfile, from_keyfile)
+                return False, "Invalid password for keyfile '{}' or '{}'".format(into_file, from_file)
             return False, "Merge command '{}' failed, check the logs".format(" ".join(command))
         return True, None
 
 
-    def __backup_keyfiles(self):
-        status, msg = self.__expire_old_backups()
+    def _prepare_for_backup(self) -> tuple[bool, str | None]:
+        status, msg = self._expire_old_backups()
         if not status:
             return False, msg
 
         # sync backup directory exists or we create it
         for d in [
-            self.__sync_backup_dir_path.parents[1],
-            self.__sync_backup_dir_path.parents[0],
-            self.__sync_backup_dir_path,
+            self._linux_user_sync_backup_dir_path.parents[1],
+            self._linux_user_sync_backup_dir_path.parents[0],
+            self._linux_user_sync_backup_dir_path,
         ]:
             if not d.exists():
-                self.__logger.info("%s does not exists, creating it...", d)
+                _logger.info("%s does not exists, creating it...", d)
                 d.mkdir()
             elif not d.is_dir():
                 return False, "{} is not a directory".format(d)
 
-        timestamp = datetime.today().strftime(self.__BACKUP_TIMESTAMP_FORMAT)
-        remote_keyfile_backup_path = (
-            self.__sync_backup_dir_path
-            / "{date}_nas_{keyfilename}".format(
-                date=timestamp, keyfilename=self.__keyfile_name
-            )
-        )
-        local_keyfile_backup_path = (
-            self.__sync_backup_dir_path
-            / "{date}_local_{keyfilename}".format(
-                date=timestamp, keyfilename=self.__keyfile_name
-            )
-        )
+        return True, None
+
+    @staticmethod
+    def _make_sure_is_directory(dir_path: Path) -> tuple[bool, str | None]:
+        if dir_path.exists():
+            if not dir_path.is_dir():
+                return False, f"{dir_path} is not a directory"
+        else:
+            dir_path.mkdir()
+
+        return True, None
+
+    def _backup_keyfiles(self, keyfile: KeyFile) -> tuple[bool, str | None]:
+        timestamp = datetime.today().strftime(_BACKUP_TIMESTAMP_FORMAT)
+        keyfile_backup_dir = self._linux_user_sync_backup_dir_path / keyfile.parent_name
+
+        # make sure local and backup dir for this keyfile exist
+        status, msg = self._make_sure_is_directory(keyfile_backup_dir)
+        if not status:
+            return False, msg
+        if not keyfile.local_keyfile_directory().exists() or not keyfile.local_path.exists():
+            # When local keyfile directory and/or local keyfile do not exist, create them as exact copy of remote
+            keyfile.local_keyfile_directory().mkdir(exist_ok=True)
+            shutil.copyfile(src=keyfile.remote_path, dst=keyfile.local_path, follow_symlinks=False)
+
+        status, msg = self._make_sure_is_directory(keyfile.local_keyfile_directory())
+        if not status:
+            return False, msg
+
+        remote_keyfile_backup_path = keyfile_backup_dir / f"{timestamp}_nas_{keyfile.name}"
+        local_keyfile_backup_path = keyfile_backup_dir / f"{timestamp}_local_{keyfile.name}"
+
         if remote_keyfile_backup_path.exists() or local_keyfile_backup_path.exists():
-            return False, "backup file {} or {} already exists".format(
-                remote_keyfile_backup_path, local_keyfile_backup_path
-            )
+            return False, f"backup file '{remote_keyfile_backup_path}' or '{local_keyfile_backup_path}' already exists"
 
-        self.__logger.info("remote keyfile backup is %s", remote_keyfile_backup_path)
-        self.__logger.info("local keyfile backup is %s", local_keyfile_backup_path)
+        _logger.info("remote keyfile backup for %s is %s", keyfile.relative_path, remote_keyfile_backup_path)
+        _logger.info("local keyfile backup for %s is %s", keyfile.relative_path, local_keyfile_backup_path)
 
-        shutil.copyfile(
-            self.__remote_keyfile_path,
-            remote_keyfile_backup_path,
-            follow_symlinks=False,
-        )
-        shutil.copyfile(
-            self.__local_keyfile_path, local_keyfile_backup_path, follow_symlinks=False
-        )
+        shutil.copyfile(src=keyfile.remote_path, dst=remote_keyfile_backup_path, follow_symlinks=False)
+        shutil.copyfile(src=keyfile.local_path, dst=local_keyfile_backup_path, follow_symlinks=False)
         phanas.file_utils.make_readonly(remote_keyfile_backup_path)
         phanas.file_utils.make_readonly(local_keyfile_backup_path)
 
         return True, None
 
-    def __expire_old_backups(self):
-        if not self.__sync_backup_dir_path.is_dir():
+    def _expire_old_backups(self) -> tuple[bool, str | None]:
+        if not self._linux_user_sync_backup_dir_path.is_dir():
             return True, None
 
-        for file in self.__sync_backup_dir_path.glob("*.kdbx"):
-            day = self.__read_day_from_backup_file(file)
-            threshold_day = datetime.today() - timedelta(
-                days=self.__BACKUP_EXPIRATION_IN_DAYS
-            )
+        # iter over legacy backups and then backups in subdirectories
+        for file in chain(self._linux_user_sync_backup_dir_path.glob("*.kdbx"), self._linux_user_sync_backup_dir_path.glob("*/*.kdbx")):
+            day = self._read_day_from_backup_file(file)
+            threshold_day = datetime.today() - timedelta(days=_BACKUP_EXPIRATION_IN_DAYS)
             if day < threshold_day:
-                self.__logger.info("deleting old backup %s...", file)
+                _logger.info("deleting old backup %s...", file)
                 file.unlink()
 
         return True, None
 
-    def __read_day_from_backup_file(self, file_path):
+    @staticmethod
+    def _read_day_from_backup_file(file_path) -> datetime:
         day_str = file_path.stem[0 : len("2020-06-18")]
-        return datetime.strptime(day_str, self.__BACKUP_DATE_FORMAT)
+        return datetime.strptime(day_str, _BACKUP_DATE_FORMAT)
 
-    def __read_timestamp_from_backup_file(self, file_path):
+    @staticmethod
+    def _read_timestamp_from_backup_file(file_path) -> datetime:
         timestamp_str = file_path.stem[0 : len("2020-06-18_09-32-45")]
-        return datetime.strptime(timestamp_str, self.__BACKUP_TIMESTAMP_FORMAT)
+        return datetime.strptime(timestamp_str, _BACKUP_TIMESTAMP_FORMAT)
 
 
 def run(config):
@@ -362,7 +463,7 @@ def run(config):
     if keepass.should_synch_keyfiles():
         status, msg = keepass.do_sync()
         if not status:
-            logger.error(msg)
+            logger.error("Sync failed: %s", msg)
     else:
         logger.info("Keyfile synchronization is not configured")
 

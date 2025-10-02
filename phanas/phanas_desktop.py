@@ -75,7 +75,7 @@ class PhanasDesktop:
 
         return True
 
-    def _do_backup(self, output):
+    def _do_backup(self, output) -> bool:
         self.info_label(output, "Creating backup... can take a while!")
         backup = phanas.backup.Backup(self.__config)
         if backup.should_backup():
@@ -85,30 +85,35 @@ class PhanasDesktop:
                 status, msg = backup.do_backup()
                 if not status:
                     self.failure(output, msg)
-                    return
+                    return False
                 self.add_persistent_msg(output, "Backup done")
         else:
             self.info_label(output, "Backup not configured")
 
-    def _do_things(self, output: Output):
+        return True
+
+    def _do_things(self, output: Output) -> bool:
         if not self._do_automount(output):
-            return
+            return False
         if not self._do_keyfile_synchronization(output):
-            return
+            return False
         if not self._do_nascopy(output):
-            return
-        self._do_backup(output)
+            return False
+        return self._do_backup(output)
 
     def do_things(self, output: Output):
-        self._do_things(output)
+        success = self._do_things(output)
 
-        self.info_label(output, "     Closing in 3 seconds...")
-        time.sleep(3)
-        self._close(output)
+        if success:
+            self.info_label(output, "\n     Closing in 3 seconds...")
+            time.sleep(3)
+            self._close(output)
+        else:
+            self.info_label(output, "\n     This window won't close automatically.")
 
     def failure(self, output, msg):
         self.__logger.error(msg)
-        output.failure(msg)
+        output.add_persistent_msg(msg)
 
     def info_label(self, output, text):
         self.__logger.info(text)
