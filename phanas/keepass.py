@@ -153,16 +153,16 @@ class KeePass:
         return True, None
 
     def _synch_files(self):
-        status, msg = self.__need_sync()
-        if not status:
+        success, msg = self.__need_sync()
+        if not success:
             if msg:
                 return False, msg
             self.__logger.info("Keyfiles have not changed")
             return True, None
 
         # backup local and remote keyfiles
-        status, msg = self.__backup_keyfiles()
-        if not status:
+        success, msg = self.__backup_keyfiles()
+        if not success:
             return False, msg
 
         if not self.__temp_dir_path.exists():
@@ -185,13 +185,15 @@ class KeePass:
 
                 # sync remote to local and the other way around
                 self.__logger.info("merging local keyfile into remote...")
-                if not self.__merge_keyfiles(remote_copy.name, local_copy.name):
+                success, msg = self.__merge_keyfiles(remote_copy.name, local_copy.name)
+                if not success:
                     # TODO remove backups to avoid preventing new attempt to synchronize
-                    return False, "{} failed to merge local keyfile"
+                    return False, msg
                 self.__logger.info("merging remote keyfile into local...")
-                if not self.__merge_keyfiles(local_copy.name, remote_copy.name):
+                success, msg = self.__merge_keyfiles(local_copy.name, remote_copy.name)
+                if not success:
                     # TODO remove backups to avoid preventing new attempt to synchronize
-                    return False, "{} failed to merge remote keyfile"
+                    return False, msg
 
                 # overwrite remote and local with up to date file
                 shutil.copy(remote_copy.name, self.__remote_keyfile_path)
@@ -252,12 +254,12 @@ class KeePass:
         command = [
             self.__keepassxc_cli,
             "merge",
-            "--quiet",
             "--same-credentials",
             into_keyfile,
             from_keyfile,
         ]
 
+        self.__logger.info("Running command: %s", command)
         proc = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -269,7 +271,12 @@ class KeePass:
         self.__logger.info("*********** output ***********\n%s", outs)
         self.__logger.info("***********  errs  ***********\n%s", errs)
 
-        return proc.returncode == 0
+        if proc.returncode != 0:
+            if "Des identifiants invalides ont été fournis" in errs:
+                return False, "Invalid password for keyfile '{}' or '{}'".format(into_keyfile, from_keyfile)
+            return False, "Merge command '{}' failed, check the logs".format(" ".join(command))
+        return True, None
+
 
     def __backup_keyfiles(self):
         status, msg = self.__expire_old_backups()
