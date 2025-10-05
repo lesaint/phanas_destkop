@@ -15,6 +15,9 @@ The following are required by default, unless option --no-gui is provided:
    ```
    sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0
    ```
+* Python 3 package `SecretStorage`
+  (already installed on Ubuntu?)
+
 ### on Linux
 
 The following are required to mount NAS drives on Linux
@@ -79,7 +82,10 @@ Sample
 ```json
 {
   "keepass": {
-    "keyfile": "foo.kdbx"
+    "keyfiles": [
+      "bar/foo.kdbx",
+      "donut/donut.kdbx"
+    ]
   },
   "backup": {
     "script_path": "/home/donut/scripts/backup_donut.sh"
