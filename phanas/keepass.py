@@ -107,18 +107,20 @@ class KeePass:
     def _load_keyfiles(self) -> bool:
         # legacy, expected only the name of the key file, relative path was hardcoded to the current authenticated user
         keyfile_name = self._keepass_config.get("keyfile")
-        if not isinstance(keyfile_name, str) or not keyfile_name:
+        # expect paths relative to keys directory in sys mount, such as phan/sebastienlesaint.kdbx
+        keyfile_relative_paths = self._keepass_config.get(_KEYFILES_CONFIG_JSON_OBJECT_NAME)
+
+        has_legacy_config = isinstance(keyfile_name, str) and keyfile_name
+        has_new_config = isinstance(keyfile_relative_paths, list) and keyfile_relative_paths
+
+        if not has_legacy_config and not has_new_config:
             return False
-        else:
+
+        if has_legacy_config:
             relative_path = f"{self._linux_username}/{keyfile_name}"
             self._legacy_keyfile = self._new_keyfile_from_relative_path(relative_path=relative_path)
             self._keyfiles = [self._legacy_keyfile]
-
-        # expect paths relative to keys directory in sys mount, such as phan/sebastienlesaint.kdbx
-        keyfile_relative_paths = self._keepass_config.get(_KEYFILES_CONFIG_JSON_OBJECT_NAME)
-        if not isinstance(keyfile_relative_paths, list) or not keyfile_relative_paths:
-            return False
-        else:
+        elif has_new_config:
             self._keyfiles = [self._new_keyfile_from_relative_path(s.strip()) for s in keyfile_relative_paths if s]
 
         _logger.info("keyfiles: %s", ",".join(str(keyfile) for keyfile in self._keyfiles))
