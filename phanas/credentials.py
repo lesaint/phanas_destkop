@@ -1,5 +1,8 @@
+from contextlib import closing
 from pathlib import Path
 from abc import ABC, abstractmethod
+
+import secretstorage
 
 
 def _mask_password(s: str) -> str | None:
@@ -18,6 +21,7 @@ class Credentials(ABC):
     def get_keyfile_password(self, keyfile_relative_path: str) -> str | None:
         pass
 
+
 class CredentialsProvider(ABC):
     @abstractmethod
     def load_credentials(self) -> tuple[Credentials | None, str | None]:
@@ -25,6 +29,9 @@ class CredentialsProvider(ABC):
 
 
 class FileCredentialsProvider(CredentialsProvider):
+    """
+    Loads credentials from a file.
+    """
     def __init__(self, credential_file_path: Path):
         self.credentials_file_path = credential_file_path
 
@@ -89,3 +96,69 @@ class FileCredentials(Credentials):
             f"legacy={self._is_legacy_credentials_file}, "
             f"keyfile_passwords=[{','.join([f"{k}:{_mask_password(v)}" for k, v in self._keyfile_passwords.items()])}]"
         )
+
+
+class InputProvider(ABC):
+    @abstractmethod
+    def get_password(self, prompt: str) -> str | None:
+        pass
+
+class KeyringCredentialsProvider(CredentialsProvider):
+    def __init__(self, input_provider: InputProvider):
+        self._input_provider = input_provider
+
+    def load_credentials(self) -> tuple[Credentials | None, str | None]:
+        res = KeyringCredentials(input_provider=self._input_provider)
+        msg = res.initialize()
+        if msg:
+            return None, msg
+        return res, None
+
+
+class KeyringCredentials(Credentials):
+    def __init__(self, input_provider: InputProvider):
+        self._keyfile_passwords: dict[str, str] = {}
+        self._base_attributes: dict[str, str] = {'application': 'phanas_desktop', 'type': 'keyfile'}
+        self._password_encoding: str = "utf-8"
+        self._input_provider: InputProvider = input_provider
+
+    def initialize(self) -> str | None:
+        with closing(secretstorage.dbus_init()) as dbus_connection:
+            return self._load_existing_keyfile_passwords(dbus_connection)
+
+    def _load_existing_keyfile_passwords(self, dbus_connection: secretstorage.DBusConnection) -> str | None:
+        collection = secretstorage.get_default_collection(dbus_connection)
+        items = collection.search_items(self._base_attributes)
+        for item in items:
+            relative_path = item.get_attributes().get("relative_path")
+            password = item.get_secret().decode(self._password_encoding)
+            self._keyfile_passwords[relative_path] = password
+
+        return None
+
+    def _store_keyfile_password_in_keyring(self, relative_path: str, password: str):
+        with closing(secretstorage.dbus_init()) as dbus_connection:
+            collection = secretstorage.get_default_collection(dbus_connection)
+            item_attributes = {**self._base_attributes, "relative_path": relative_path}
+            collection.create_item(
+                label=f"PhanNAS Desktop : keyfile password : {relative_path}",
+                attributes=item_attributes,
+                secret=password.encode(self._password_encoding),
+            )
+
+    def  is_legacy_credentials_file(self) -> bool:
+        return False
+
+    def get_keyfile_password(self, keyfile_relative_path: str) -> str | None:
+        password = self._keyfile_passwords.get(keyfile_relative_path)
+        if password:
+            return password
+
+        password = self._input_provider.get_password(prompt=f"Provide password for keyfile '{keyfile_relative_path}': ")
+        if password:
+            self._keyfile_passwords[keyfile_relative_path] = password
+            self._store_keyfile_password_in_keyring(relative_path=keyfile_relative_path, password=password)
+            return password
+
+        return None
+

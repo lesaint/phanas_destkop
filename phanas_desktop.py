@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse
+import getpass
+
 import phanas.file_utils
 import phanas.logging
+from phanas.credentials import InputProvider
 
+
+class CliInputProvider(InputProvider):
+    def get_password(self, prompt: str) -> str | None:
+        return getpass.getpass(prompt=prompt)
 
 def main():
     phanas.logging.configure_logging()
@@ -38,7 +45,7 @@ def main():
     elif args.keepass_sync:
         import phanas.keepass as keepass
 
-        keepass.run(config)
+        keepass.run(config, input_provider=CliInputProvider())
     elif args.backup:
         import phanas.backup as backup
 
@@ -59,7 +66,7 @@ def main():
         logger.info("%s started", PROGRAM_NAME)
 
         phanasDesktop = PhanasDesktop(config, logger)
-        phanasDesktop.do_things(Output())
+        phanasDesktop.do_things(input_provider=CliInputProvider(), output=Output())
     else:
         import phanas.login_gui as login_gui
 

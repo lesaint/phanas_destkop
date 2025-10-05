@@ -1,8 +1,8 @@
-import getpass
 import logging
 import os
 from itertools import chain
 
+import getpass
 import phanas.automount
 import phanas.file_utils
 import phanas.nas
@@ -15,7 +15,8 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from phanas.credentials import Credentials, CredentialsProvider, FileCredentialsProvider
+from phanas.credentials import Credentials, CredentialsProvider, FileCredentialsProvider, KeyringCredentialsProvider, \
+    InputProvider
 
 _KEEPASSXC_CLI = "keepassxc-cli"
 _KEEPASSXC_CLI_SNAP = "keepassxc.cli"
@@ -96,14 +97,14 @@ class KeePass:
 
         self._legacy_keyfile: KeyFile | None = None
         self._keyfiles: list[KeyFile] | None = None
-        self._load_keyfiles(config)
+        self._load_keyfiles()
 
         self._linux_user_sync_backup_dir_path: Path | None = None
 
         self._keepassxc_cli: Path | None = None
         self._md5sum: Path | None = None
 
-    def _load_keyfiles(self, config: dict) -> bool:
+    def _load_keyfiles(self) -> bool:
         # legacy, expected only the name of the key file, relative path was hardcoded to the current authenticated user
         keyfile_name = self._keepass_config.get("keyfile")
         if not isinstance(keyfile_name, str) or not keyfile_name:
@@ -464,11 +465,11 @@ class KeePass:
         return datetime.strptime(timestamp_str, _BACKUP_TIMESTAMP_FORMAT)
 
 
-def run(config):
+def run(config, input_provider: InputProvider):
     logger = logging.getLogger("keepass")
     logger.info("Keepass synchronization started")
 
-    keepass = KeePass(config)
+    keepass = KeePass(config=config, credentials_provider=KeyringCredentialsProvider(input_provider=input_provider))
 
     if keepass.should_synch_keyfiles():
         status, msg = keepass.do_sync()

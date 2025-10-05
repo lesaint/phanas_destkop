@@ -1,1 +1,2 @@
-black
+black>=25.9.0
+SecretStorage>=3.4.0

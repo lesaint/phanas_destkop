@@ -6,6 +6,7 @@ import phanas.nascopy
 import time
 
 from phanas.automount import AutoMountLogger
+from phanas.credentials import KeyringCredentialsProvider, InputProvider
 
 PROGRAM_NAME = "PhanNas Desktop"
 
@@ -47,9 +48,9 @@ class PhanasDesktop:
 
         return self.autoMount.run(PersistentMsgAutoMountLogger(self))
 
-    def _do_keyfile_synchronization(self, output):
+    def _do_keyfile_synchronization(self, input_provider: InputProvider, output: Output):
         self.info_label(output, "Synchronizing keyfiles...")
-        keepass = phanas.keepass.KeePass(self.__config)
+        keepass = phanas.keepass.KeePass(self.__config, credentials_provider=KeyringCredentialsProvider(input_provider=input_provider))
         if keepass.should_synch_keyfiles():
             status, msg = keepass.do_sync()
             if not status:
@@ -92,17 +93,17 @@ class PhanasDesktop:
 
         return True
 
-    def _do_things(self, output: Output) -> bool:
+    def _do_things(self, input_provider: InputProvider, output: Output) -> bool:
         if not self._do_automount(output):
             return False
-        if not self._do_keyfile_synchronization(output):
+        if not self._do_keyfile_synchronization(input_provider=input_provider, output=output):
             return False
         if not self._do_nascopy(output):
             return False
         return self._do_backup(output)
 
-    def do_things(self, output: Output):
-        success = self._do_things(output)
+    def do_things(self, input_provider: InputProvider, output: Output):
+        success = self._do_things(input_provider=input_provider, output=output)
 
         if success:
             self.info_label(output, "\n     Closing in 3 seconds...")
