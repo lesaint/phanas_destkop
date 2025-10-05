@@ -15,7 +15,7 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from phanas.credentials import Credentials
+from phanas.credentials import Credentials, CredentialsProvider, FileCredentialsProvider
 
 _KEEPASSXC_CLI = "keepassxc-cli"
 _KEEPASSXC_CLI_SNAP = "keepassxc.cli"
@@ -66,7 +66,7 @@ class KeePass:
     __keyfile_password = None
 
 
-    def __init__(self, config):
+    def __init__(self, config, credentials_provider: CredentialsProvider | None = None):
         self._keepass_config: dict = {}
         if _KEEPASS_CONFIG_JSON_OBJECT_NAME in config and isinstance(config.get(_KEEPASS_CONFIG_JSON_OBJECT_NAME), dict):
             self._keepass_config = config[_KEEPASS_CONFIG_JSON_OBJECT_NAME]
@@ -88,6 +88,10 @@ class KeePass:
         self._temp_dir_path = script_dir / ".tmp"
 
         self._credentials_file_path = script_dir / ".kpx_phanas"
+        if credentials_provider:
+            self.credentials_provider = credentials_provider
+        else:
+            self.credentials_provider = FileCredentialsProvider(self._credentials_file_path)
         self._credentials: Credentials | None = None
 
         self._legacy_keyfile: KeyFile | None = None
@@ -171,32 +175,34 @@ class KeePass:
         if not self._remote_keyfile_dir_path.is_dir():
             return False, f"{self._remote_keyfile_dir_path} is not a directory"
 
-        # credentials are provided, for each keyfile
-        credentials = Credentials(self._credentials_file_path)
-        msg = credentials.load()
+        # Credentials can be loaded
+        credentials, msg = self.credentials_provider.load_credentials()
         if msg:
             return False, msg
         _logger.debug("credentials: %s", credentials)
-        if not credentials.is_legacy_credentials_file:
-            for keyfile in self._keyfiles:
-                if not keyfile.relative_path in credentials.keyfile_passwords:
-                    return False, f"No password for '{keyfile.relative_path}' in credentials file '{credentials.credentials_file_path}'"
         self._credentials = credentials
 
+        # Support for legacy credentials is dropped
         how_to_migrate_message = f"Legacy credentials file detected:\n" \
                                  f"     * change configuration under '{_KEEPASS_CONFIG_JSON_OBJECT_NAME}' to have a list of keyfiles under key '{_KEYFILES_CONFIG_JSON_OBJECT_NAME}'\n" \
-                                 f"     * change '{self._credentials.credentials_file_path}' to have one password per keyfile\n" \
-                                 f"     * create backup directory for the current user: {self._linux_user_sync_backup_dir_path}" \
+                                 f"     * delete credentials file '{self._credentials_file_path}'\n" \
+                                 f"     * create backup directory for the current user: {self._linux_user_sync_backup_dir_path}\n" \
                                  f"     * create local directory for keyfiles: {self._local_dir_path}"
-        if self._credentials.is_legacy_credentials_file:
+        if self._credentials.is_legacy_credentials_file():
             return False, how_to_migrate_message
+
+        # credentials are provided, for each keyfile
+        if not credentials.is_legacy_credentials_file():
+            for keyfile in self._keyfiles:
+                if not credentials.get_keyfile_password(keyfile_relative_path=keyfile.relative_path):
+                    return False, f"No password for '{keyfile.relative_path}' in credentials'"
 
         # legacy mode or new mode but not a mix
         new_config = 'keyfiles' in self._keepass_config
-        if self._credentials.is_legacy_credentials_file == new_config:
+        if self._credentials.is_legacy_credentials_file() == new_config:
             return (
                 False,
-                f"Mixing legacy and new mode: credentials={self._credentials.is_legacy_credentials_file}, config={new_config}\n" \
+                f"Mixing legacy and new mode: credentials={self._credentials.is_legacy_credentials_file()}, config={new_config}\n" \
                 "{how_to_migrate_message}"
             )
 
@@ -359,7 +365,7 @@ class KeePass:
             stderr=subprocess.PIPE,
             universal_newlines=True,
         )
-        password = self._credentials.keyfile_passwords[keyfile.relative_path]
+        password = self._credentials.get_keyfile_password(keyfile_relative_path=keyfile.relative_path)
         outs, errs = proc.communicate(input=password)
         _logger.info("*********** output ***********\n%s", outs)
         _logger.info("***********  errs  ***********\n%s", errs)
