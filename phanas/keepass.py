@@ -237,10 +237,12 @@ class KeePass:
         return True, None
 
     def _sync_files(self) -> tuple[bool, str | None]:
-        success, msg = self._need_sync()
-        if not success:
-            _logger.info(f"Keyfiles have not changed%s", msg if msg else "")
-            return False, None
+        need_sync, msg = self._need_sync()
+        if not need_sync:
+            _logger.info(f"Keyfiles do not need sync%s", msg if msg else "")
+            return True, None
+        elif msg:
+            _logger.info(f"Keyfiles need sync%s", msg)
 
         if not self._temp_dir_path.exists():
             _logger.info("%s does not exists, creating it...", self._temp_dir_path)
@@ -305,7 +307,7 @@ class KeePass:
 
             # if either backup is missing, need to sync
             if latest_local_backup_path is None or latest_remote_backup_path is None:
-                return True, None
+                return True, "Either local backup or remote backup is missing"
 
             # if backups don't have same timestamp, need to sync
             if not local_timestamp == remote_timestamp:
@@ -330,7 +332,9 @@ class KeePass:
     def _get_latest_backup(self, keyfile: KeyFile, local: bool) -> tuple[Path, datetime]:
         max_date = None
         latest_backup_path = None
-        for file in self._linux_user_sync_backup_dir_path.glob(f"*_{"local" if local else "nas"}_{keyfile.local_path}"):
+        pattern = f"{keyfile.parent_name}/*_{"local" if local else "nas"}_{keyfile.name}"
+        _logger.debug(f"Looking for files matching pattern '{pattern} in {self._linux_user_sync_backup_dir_path}...")
+        for file in self._linux_user_sync_backup_dir_path.glob(pattern):
             timestamp = self._read_timestamp_from_backup_file(file)
             if max_date is None or max_date < timestamp:
                 max_date = timestamp
