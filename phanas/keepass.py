@@ -262,9 +262,11 @@ class KeePass:
             return False, msg
 
         for keyfile in self._keyfiles:
-            success, msg = self._sync_files_of_keyfile(keyfile)
-            if not success:
-                return False, msg
+            need_sync, _ = self._keyfile_need_sync(keyfile)
+            if need_sync:
+                success, msg = self._sync_files_of_keyfile(keyfile)
+                if not success:
+                    return False, msg
 
         return True, None
 
@@ -305,36 +307,43 @@ class KeePass:
 
         return True, None
 
+    def _keyfile_need_sync(self, keyfile:KeyFile) -> tuple[bool, str | None]:
+        # if local keyfile doesn't exist, need to sync
+        if not keyfile.local_file_exists():
+            return True, f"{keyfile.local_path} does not exist"
+
+        latest_local_backup_path, local_timestamp = self._get_latest_backup(keyfile=keyfile, local=True)
+        latest_remote_backup_path, remote_timestamp = self._get_latest_backup(keyfile=keyfile, local=False)
+
+        # if either backup is missing, need to sync
+        if latest_local_backup_path is None or latest_remote_backup_path is None:
+            return True, "Either local backup or remote backup is missing"
+
+        # if backups don't have same timestamp, need to sync
+        if not local_timestamp == remote_timestamp:
+            return (
+                True,
+                f"Latest backup of remote ({latest_remote_backup_path.name}) doesn't have the same timestamp "
+                f"as latest backup of local ({latest_local_backup_path.name})"
+            )
+
+        # TODO if merge marker file exists, return true
+
+        # if content of local keyfile changed since last backup, need to sync
+        if not phanas.file_utils.has_same_content(latest_local_backup_path, keyfile.local_path):
+            return True, f"local keyfile '{keyfile.relative_path}' content changed"
+
+        # if content of remote keyfile changed since last backup, need to sync
+        if not phanas.file_utils.has_same_content(latest_remote_backup_path, keyfile.remote_path):
+            return True, f"remote keyfile '{keyfile.relative_path}' content changed"
+
+        return False, None
+
     def _need_sync(self) -> tuple[bool, str | None]:
         for keyfile in self._keyfiles:
-            # if local keyfile doesn't exist, need to sync
-            if not keyfile.local_file_exists():
-                return True, f"{keyfile.local_path} does not exist"
-
-            latest_local_backup_path, local_timestamp = self._get_latest_backup(keyfile=keyfile, local=True)
-            latest_remote_backup_path, remote_timestamp = self._get_latest_backup(keyfile=keyfile, local=False)
-
-            # if either backup is missing, need to sync
-            if latest_local_backup_path is None or latest_remote_backup_path is None:
-                return True, "Either local backup or remote backup is missing"
-
-            # if backups don't have same timestamp, need to sync
-            if not local_timestamp == remote_timestamp:
-                return (
-                    True,
-                    f"Latest backup of remote ({latest_remote_backup_path.name}) doesn't have the same timestamp "
-                    f"as latest backup of local ({latest_local_backup_path.name})"
-                )
-
-            # TODO if merge marker file exists, return true
-
-            # if content of local keyfile changed since last backup, need to sync
-            if not phanas.file_utils.has_same_content(latest_local_backup_path, keyfile.local_path):
-                return True, f"local keyfile '{keyfile.relative_path}' content changed"
-
-            # if content of remote keyfile changed since last backup, need to sync
-            if not phanas.file_utils.has_same_content(latest_remote_backup_path, keyfile.remote_path):
-                return True, f"remote keyfile '{keyfile.relative_path}' content changed"
+            need_sync, msg = self._keyfile_need_sync(keyfile=keyfile)
+            if need_sync:
+                return True, msg
 
         return False, None
 
